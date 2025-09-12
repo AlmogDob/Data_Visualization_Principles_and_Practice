@@ -8,17 +8,14 @@ https://youtu.be/ih20l3pJoeU?si=CzQ8rjk5ZEOlqEHN. */
 #ifndef ALMOG_ENGINE_H_
 #define ALMOG_ENGINE_H_
 
-#include "./../include/Almog_Dynamic_Array.h"
-
-#ifndef MATRIX2D_IMPLEMENTATION
-#define MATRIX2D_IMPLEMENTATION
-#endif
-#include "./../include/Matrix2D.h"
+#include "./Almog_Dynamic_Array.h"
+#include "./Matrix2D.h"
+#include "./Almog_Draw_Library.h"
 
 #ifndef ALMOG_STRING_MANIPULATION_IMPLEMENTATION
 #define ALMOG_STRING_MANIPULATION_IMPLEMENTATION
 #endif
-#include "./../include/Almog_String_Manipulation.h"
+#include "./Almog_String_Manipulation.h"
 
 #ifndef AE_ASSERT
 #include <assert.h>
@@ -73,62 +70,24 @@ https://youtu.be/ih20l3pJoeU?si=CzQ8rjk5ZEOlqEHN. */
         ae_assert_point_is_valid((tri).points[1]);                              \
         ae_assert_point_is_valid((tri).points[2])
 
-#ifndef POINT
-#define POINT
-typedef struct {
-    float x;
-    float y;
-    float z;
-    float w;
-} Point ;
-#endif
 
-#ifndef POINTS
-#define POINTS
+#ifndef TRI_MESH_ARRAY
+#define TRI_MESH_ARRAY
 typedef struct {
     size_t length;
     size_t capacity;
-    Point* elements;
-} Points;
+    Tri_mesh *elements;
+} Tri_mesh_array; /* Tri_mesh ada array */
 #endif
 
-#ifndef TRI
-#define TRI
-typedef struct {
-    Point points[3];
-    Point tex_points[3];
-    Point center;
-    Point normal;
-    float z_min;
-    float z_max;
-    bool to_draw;
-    float light_intensity;
-    uint32_t color;
-} Tri;
-#endif
-
-#ifndef MESH
-#define MESH
+#ifndef QUAD_MESH_ARRAY
+#define QUAD_MESH_ARRAY
 typedef struct {
     size_t length;
     size_t capacity;
-    Tri *elements;
-} Mesh; /* Tri ada array */
+    Quad_mesh *elements;
+} Quad_mesh_array; /* Quad_mesh ada array */
 #endif
-
-#ifndef MESH_ARRAY
-#define MESH_ARRAY
-typedef struct {
-    size_t length;
-    size_t capacity;
-    Mesh *elements;
-} Mesh_array; /* Mesh ada array */
-#endif
-
-typedef struct {
-    size_t length;
-    Tri *elements;
-} Mesh_static;
 
 typedef struct {
     Mat2D init_position;
@@ -148,9 +107,14 @@ typedef struct {
 } Camera;
 
 typedef struct {
-    Mesh_array in_world_meshes;
-    Mesh_array projected_meshes;
-    Mesh_array original_meshes;
+    Tri_mesh_array in_world_tri_meshes;
+    Tri_mesh_array projected_tri_meshes;
+    Tri_mesh_array original_tri_meshes;
+
+    Quad_mesh_array in_world_quad_meshes;
+    Quad_mesh_array projected_quad_meshes;
+    Quad_mesh_array original_quad_meshes;
+
     Camera camera;
     Mat2D up_direction;
     Mat2D light_direction;
@@ -159,8 +123,8 @@ typedef struct {
 } Scene;
 
 Tri ae_create_tri(Point p1, Point p2, Point p3);
-void ae_create_copy_of_mesh(Mesh *des, Tri *src_elements, size_t len);
-Mesh ae_create_cube(const size_t len, uint32_t color);
+void ae_create_copy_of_mesh(Tri_mesh *des, Tri *src_elements, size_t len);
+Tri_mesh ae_create_cube(const size_t len, uint32_t color);
 
 void ae_init_camera(Scene *scene, int window_h, int window_w);
 Scene ae_init_scene(int window_h, int window_w);
@@ -168,21 +132,20 @@ void ae_reset_camera_pos(Scene *scene);
 
 void ae_point_to_mat2D(Point p, Mat2D m);
 Point ae_mat2D_to_point(Mat2D m);
-Mesh ae_get_mesh_from_obj_file(char *file_path);
-Mesh ae_get_mesh_from_stl_file(char *file_path);
-void ae_appand_copy_of_mesh(Mesh_array *mesh_array, Mesh mesh);
+Tri_mesh ae_get_mesh_from_obj_file(char *file_path);
+Tri_mesh ae_get_mesh_from_stl_file(char *file_path);
+void ae_appand_copy_of_mesh(Tri_mesh_array *mesh_array, Tri_mesh mesh);
 
-void ae_print_points(Points p);
+void ae_print_points(Curve p);
 void ae_print_tri(Tri tri, char *name, size_t padding);
-void ae_print_mesh(Mesh mesh, char *name, size_t padding);
-void ae_print_mesh_static(Mesh_static mesh, char *name, size_t padding);
+void ae_print_mesh(Tri_mesh mesh, char *name, size_t padding);
 
 void ae_calc_normal_to_tri(Mat2D normal, Tri tri);
-void ae_translate_mesh(Mesh mesh, float x, float y, float z);
-void ae_rotate_mesh_Euler_xyz(Mesh mesh, float phi_deg, float theta_deg, float psi_deg);
-void ae_set_mesh_bounding_box(Mesh mesh, float *x_min, float *x_max, float *y_min, float *y_max, float *z_min, float *z_max);
+void ae_translate_mesh(Tri_mesh mesh, float x, float y, float z);
+void ae_rotate_mesh_Euler_xyz(Tri_mesh mesh, float phi_deg, float theta_deg, float psi_deg);
+void ae_set_mesh_bounding_box(Tri_mesh mesh, float *x_min, float *x_max, float *y_min, float *y_max, float *z_min, float *z_max);
 void ae_set_tri_center_zmin_zmax(Tri *tri);
-void ae_normalize_mesh(Mesh mesh);
+void ae_normalize_mesh(Tri_mesh mesh);
 
 Point ae_line_itersect_plane(Mat2D plane_p, Mat2D plane_n, Mat2D line_start, Mat2D line_end, float *t);
 float signed_dist_point_and_plane(Point p, Mat2D plane_p, Mat2D plane_n);
@@ -192,8 +155,8 @@ void ae_set_projection_mat(Mat2D proj_mat,float aspect_ratio, float FOV_deg, flo
 void ae_set_view_mat(Mat2D view_mat, Camera camera, Mat2D up);
 Point ae_project_point_view2screen(Mat2D proj_mat, Point src);
 Tri ae_transform_tri_to_view(Mat2D view_mat, Tri tri);
-Mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int window_w, int window_h, Mat2D light_direction, Scene *scene);
-void ae_project_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Mesh *des, Mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene);
+Tri_mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int window_w, int window_h, Mat2D light_direction, Scene *scene);
+void ae_project_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *des, Tri_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene);
 
 void ae_swap_tri(Tri *v, int i, int j);
 bool ae_compare_tri(Tri t1, Tri t2);
@@ -221,18 +184,18 @@ Tri ae_create_tri(Point p1, Point p2, Point p3)
     return tri;
 }
 
-void ae_create_copy_of_mesh(Mesh *des, Tri *src_elements, size_t len)
+void ae_create_copy_of_mesh(Tri_mesh *des, Tri *src_elements, size_t len)
 {
-    Mesh temp_des = *des;
+    Tri_mesh temp_des = *des;
     for (size_t i = 0; i < len; i++) {
         ada_appand(Tri, temp_des, src_elements[i]);
     }
     *des = temp_des;
 }
 
-Mesh ae_create_cube(const size_t len, uint32_t color)
+Tri_mesh ae_create_cube(const size_t len, uint32_t color)
 {
-    Mesh cube;
+    Tri_mesh cube;
 
     ada_init_array(Tri, cube);
 
@@ -249,7 +212,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = len,
         .points[2].z = 0,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri1);
     Tri tri2 = {
@@ -265,7 +228,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = 0,
         .points[2].z = 0,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri2);
     Tri tri3 = { /* north */
@@ -281,7 +244,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = len,
         .points[2].z = len,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri3);
     Tri tri4 = {
@@ -297,7 +260,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = 0,
         .points[2].z = len,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri4);
     Tri tri5 = { /* east */
@@ -313,7 +276,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = len,
         .points[2].z = len,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri5);
     Tri tri6 = {
@@ -329,7 +292,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = 0,
         .points[2].z = len,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri6);
     Tri tri7 = { /* west */
@@ -345,7 +308,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = len,
         .points[2].z = 0,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri7);
     Tri tri8 = {
@@ -361,7 +324,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = 0,
         .points[2].z = 0,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri8);
     Tri tri9 = { /* top */
@@ -377,7 +340,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = len,
         .points[2].z = len,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri9);
     Tri tri10 = {
@@ -393,7 +356,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = len,
         .points[2].z = 0,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri10);
     Tri tri11 = { /* bottom */
@@ -409,7 +372,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = 0,
         .points[2].z = 0,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri11);
     Tri tri12 = {
@@ -425,7 +388,7 @@ Mesh ae_create_cube(const size_t len, uint32_t color)
         .points[2].y = 0,
         .points[2].z = 0,
         .to_draw = true,
-        .color = color,
+        .colors = {color, color, color},
     };
     ada_appand(Tri, cube, tri12);
     
@@ -534,7 +497,7 @@ Point ae_mat2D_to_point(Mat2D m)
     return res;
 }
 
-Mesh ae_get_mesh_from_file(char *file_path)
+Tri_mesh ae_get_mesh_from_file(char *file_path)
 {
     char file_extention[MAX_LEN_LINE], temp_word[MAX_LEN_LINE];
 
@@ -556,11 +519,11 @@ Mesh ae_get_mesh_from_file(char *file_path)
         return ae_get_mesh_from_obj_file(file_path);
     }
     
-    Mesh null_mesh = {0};
+    Tri_mesh null_mesh = {0};
     return null_mesh;
 }
 
-Mesh ae_get_mesh_from_obj_file(char *file_path)
+Tri_mesh ae_get_mesh_from_obj_file(char *file_path)
 {
     char current_line[MAX_LEN_LINE], current_word[MAX_LEN_LINE], current_num_str[MAX_LEN_LINE];
     char file_name[MAX_LEN_LINE], file_extention[MAX_LEN_LINE], mesh_name[MAX_LEN_LINE];
@@ -604,9 +567,9 @@ Mesh ae_get_mesh_from_obj_file(char *file_path)
     // }
 
     /* parsing data from file */
-    Points points;
+    Curve points = {0};
     ada_init_array(Point, points);
-    Mesh mesh;
+    Tri_mesh mesh;
     ada_init_array(Tri, mesh);
 
     int line_len;
@@ -680,7 +643,9 @@ Mesh ae_get_mesh_from_obj_file(char *file_path)
                 tri1.center.z = (tri1.points[0].z + tri1.points[1].z + tri1.points[2].z) / 3;
                 tri1.z_min = fmin(tri1.points[0].z, fmin(tri1.points[1].z, tri1.points[2].z));
                 tri1.z_max = fmax(tri1.points[0].z, fmax(tri1.points[1].z, tri1.points[2].z));
-                tri1.color = 0xFFFFFFFF;
+                tri1.colors[0] = 0xFFFFFFFF;
+                tri1.colors[1] = 0xFFFFFFFF;
+                tri1.colors[2] = 0xFFFFFFFF;
 
                 ada_appand(Tri, mesh, tri1);
                 // AE_PRINT_TRI(tri1);
@@ -732,7 +697,9 @@ Mesh ae_get_mesh_from_obj_file(char *file_path)
                 tri1.center.z = (tri1.points[0].z + tri1.points[1].z + tri1.points[2].z) / 3;
                 tri1.z_min = fmin(tri1.points[0].z, fmin(tri1.points[1].z, tri1.points[2].z));
                 tri1.z_max = fmax(tri1.points[0].z, fmax(tri1.points[1].z, tri1.points[2].z));
-                tri1.color = 0xFFFFFFFF;
+                tri1.colors[0] = 0xFFFFFFFF;
+                tri1.colors[1] = 0xFFFFFFFF;
+                tri1.colors[2] = 0xFFFFFFFF;
 
                 tri2.to_draw = true;
                 tri2.light_intensity = 1;
@@ -741,7 +708,9 @@ Mesh ae_get_mesh_from_obj_file(char *file_path)
                 tri2.center.z = (tri2.points[0].z + tri2.points[1].z + tri2.points[2].z) / 3;
                 tri2.z_min = fmin(tri2.points[0].z, fmin(tri2.points[1].z, tri2.points[2].z));
                 tri2.z_max = fmax(tri2.points[0].z, fmax(tri2.points[1].z, tri2.points[2].z));
-                tri2.color = 0xFFFFFFFF;
+                tri2.colors[0] = 0xFFFFFFFF;
+                tri2.colors[1] = 0xFFFFFFFF;
+                tri2.colors[2] = 0xFFFFFFFF;
 
                 ada_appand(Tri, mesh, tri1);
                 ada_appand(Tri, mesh, tri2);
@@ -755,7 +724,7 @@ Mesh ae_get_mesh_from_obj_file(char *file_path)
     return mesh;
 }
 
-Mesh ae_get_mesh_from_stl_file(char *file_path)
+Tri_mesh ae_get_mesh_from_stl_file(char *file_path)
 {
     FILE *file;
     file = fopen(file_path, "rb");
@@ -772,14 +741,17 @@ Mesh ae_get_mesh_from_stl_file(char *file_path)
     fread(&num_of_tri, STL_NUM_SIZE, 1, file);
     // dprintINT(num_of_tri);
 
-    Mesh mesh;
+    Tri_mesh mesh;
     ada_init_array(Tri, mesh);
     for (size_t i = 0; i < num_of_tri; i++) {
         Tri temp_tri = {0};
 
-        fread(&(temp_tri.normal.x), STL_NUM_SIZE, 1, file);
-        fread(&(temp_tri.normal.y), STL_NUM_SIZE, 1, file);
-        fread(&(temp_tri.normal.z), STL_NUM_SIZE, 1, file);
+        fread(&(temp_tri.normals[0].x), STL_NUM_SIZE, 1, file);
+        fread(&(temp_tri.normals[0].y), STL_NUM_SIZE, 1, file);
+        fread(&(temp_tri.normals[0].z), STL_NUM_SIZE, 1, file);
+
+        temp_tri.normals[1] = temp_tri.normals[0];
+        temp_tri.normals[2] = temp_tri.normals[0];
 
         fread(&(temp_tri.points[0].x), STL_NUM_SIZE, 1, file);
         fread(&(temp_tri.points[0].y), STL_NUM_SIZE, 1, file);
@@ -802,7 +774,9 @@ Mesh ae_get_mesh_from_stl_file(char *file_path)
         temp_tri.center.z = (temp_tri.points[0].z + temp_tri.points[1].z + temp_tri.points[2].z) / 3;
         temp_tri.z_min = fmin(temp_tri.points[0].z, fmin(temp_tri.points[1].z, temp_tri.points[2].z));
         temp_tri.z_max = fmax(temp_tri.points[0].z, fmax(temp_tri.points[1].z, temp_tri.points[2].z));
-        temp_tri.color = 0xFFFFFFFF;
+        temp_tri.colors[0] = 0xFFFFFFFF;
+        temp_tri.colors[1] = 0xFFFFFFFF;
+        temp_tri.colors[2] = 0xFFFFFFFF;
 
         ada_appand(Tri, mesh, temp_tri);
     }
@@ -810,20 +784,20 @@ Mesh ae_get_mesh_from_stl_file(char *file_path)
     return mesh;
 }
 
-void ae_appand_copy_of_mesh(Mesh_array *mesh_array, Mesh mesh)
+void ae_appand_copy_of_mesh(Tri_mesh_array *mesh_array, Tri_mesh mesh)
 {
-    Mesh_array temp_mesh_array = *mesh_array;
-    Mesh temp_mesh;
+    Tri_mesh_array temp_mesh_array = *mesh_array;
+    Tri_mesh temp_mesh;
     ada_init_array(Tri, temp_mesh);
     for (size_t i = 0; i < mesh.length; i++) {
         ada_appand(Tri, temp_mesh, mesh.elements[i]);
     }
-    ada_appand(Mesh, temp_mesh_array, temp_mesh);
+    ada_appand(Tri_mesh, temp_mesh_array, temp_mesh);
 
     *mesh_array = temp_mesh_array;
 }
 
-void ae_print_points(Points p)
+void ae_print_points(Curve p)
 {
     for (size_t i = 0; i < p.length; i++) {
         printf("point %3zu: (%5f, %5f, %5f)\n", i, p.elements[i].x, p.elements[i].y, p.elements[i].z);
@@ -837,17 +811,7 @@ void ae_print_tri(Tri tri, char *name, size_t padding)
     printf("%*s    draw? %d\n", (int)padding, "", tri.to_draw);
 }
 
-void ae_print_mesh(Mesh mesh, char *name, size_t padding)
-{
-    char tri_name[256];
-    printf("%*s%s:\n", (int) padding, "", name);
-    for (size_t i = 0; i < mesh.length; i++) {
-        snprintf(tri_name, 256, "tri %zu", i);
-        ae_print_tri(mesh.elements[i], tri_name, 4);
-    }
-}
-
-void ae_print_mesh_static(Mesh_static mesh, char *name, size_t padding)
+void ae_print_mesh(Tri_mesh mesh, char *name, size_t padding)
 {
     char tri_name[256];
     printf("%*s%s:\n", (int) padding, "", name);
@@ -882,7 +846,7 @@ void ae_calc_normal_to_tri(Mat2D normal, Tri tri)
     mat2D_free(c);
 }
 
-void ae_translate_mesh(Mesh mesh, float x, float y, float z)
+void ae_translate_mesh(Tri_mesh mesh, float x, float y, float z)
 {
     for (size_t i = 0; i < mesh.length; i++) {
         for (int j = 0; j < 3; j++) {
@@ -895,7 +859,7 @@ void ae_translate_mesh(Mesh mesh, float x, float y, float z)
 
 /* phi around x, theta around y, psi around z.
 DCM = Cz*Cy*Cx */
-void ae_rotate_mesh_Euler_xyz(Mesh mesh, float phi_deg, float theta_deg, float psi_deg)
+void ae_rotate_mesh_Euler_xyz(Tri_mesh mesh, float phi_deg, float theta_deg, float psi_deg)
 {
     Mat2D RotZ = mat2D_alloc(3,3);
     mat2D_set_rot_mat_z(RotZ, psi_deg);
@@ -942,7 +906,7 @@ void ae_rotate_mesh_Euler_xyz(Mesh mesh, float phi_deg, float theta_deg, float p
     mat2D_free(des_point_mat);
 }
 
-void ae_set_mesh_bounding_box(Mesh mesh, float *x_min, float *x_max, float *y_min, float *y_max, float *z_min, float *z_max)
+void ae_set_mesh_bounding_box(Tri_mesh mesh, float *x_min, float *x_max, float *y_min, float *y_max, float *z_min, float *z_max)
 {
     float xmin = FLT_MAX, xmax = FLT_MIN;
     float ymin = FLT_MAX, ymax = FLT_MIN;
@@ -982,7 +946,7 @@ void ae_set_tri_center_zmin_zmax(Tri *tri)
 }
 
 /* normalize all the points in between -1 and 1. the origin is in the center of the body. */
-void ae_normalize_mesh(Mesh mesh)
+void ae_normalize_mesh(Tri_mesh mesh)
 {
     float xmax, xmin, ymax, ymin, zmax, zmin;
     ae_set_mesh_bounding_box(mesh, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax);
@@ -1348,7 +1312,7 @@ Tri ae_transform_tri_to_view(Mat2D view_mat, Tri tri)
     return des_tri;
 }
 
-Mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int window_w, int window_h, Mat2D light_direction, Scene *scene)
+Tri_mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int window_w, int window_h, Mat2D light_direction, Scene *scene)
 {
     ae_assert_tri_is_valid(tri);
 
@@ -1384,7 +1348,7 @@ Mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int wi
     /* transform tri to camera view */
     tri = ae_transform_tri_to_view(view_mat, tri);
 
-    // Mesh temp_tri_array; 
+    // Tri_mesh temp_tri_array; 
     // ada_init_array(Tri, temp_tri_array);
     // ada_appand(Tri, temp_tri_array, tri);
     /* clip tir */
@@ -1398,7 +1362,7 @@ Mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int wi
     MAT2D_AT(z_plane_n, 2, 0) = 1;
 
     int num_clipped_tri = ae_tri_clip_with_plane(tri, z_plane_p, z_plane_n, &clipped_tri1, &clipped_tri2);
-    Mesh temp_tri_array; 
+    Tri_mesh temp_tri_array; 
     ada_init_array(Tri, temp_tri_array);
     if (num_clipped_tri == -1) {
         fprintf(stderr, "%s:%d: [error] problem with clipping triangles\n", __FILE__, __LINE__);
@@ -1452,13 +1416,13 @@ Mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int wi
     return temp_tri_array;
 }
 
-void ae_project_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Mesh *des, Mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene)
+void ae_project_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *des, Tri_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene)
 {
-    Mesh temp_des = *des;
+    Tri_mesh temp_des = *des;
 
     size_t i;
     for (i = 0; i < src.length; i++) {
-        Mesh temp_tri_array = ae_project_tri_world2screen(proj_mat, view_mat, src.elements[i], window_w, window_h, light_direction, scene);
+        Tri_mesh temp_tri_array = ae_project_tri_world2screen(proj_mat, view_mat, src.elements[i], window_w, window_h, light_direction, scene);
 
         for (size_t tri_index = 0; tri_index < temp_tri_array.length; tri_index++) {
             Tri temp_tri = temp_tri_array.elements[tri_index];

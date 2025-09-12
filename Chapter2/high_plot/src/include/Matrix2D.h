@@ -82,6 +82,7 @@ size_t mat2D_offset2d_uint32(Mat2D_uint32 m, size_t i, size_t j);
 
 void mat2D_fill(Mat2D m, double x);
 void mat2D_fill_sequence(Mat2D m, double start, double step);
+void mat2D_fill_uint32(Mat2D_uint32 m, uint32_t x);
 void mat2D_rand(Mat2D m, double low, double high);
 
 void mat2D_dot(Mat2D dst, Mat2D a, Mat2D b);
@@ -209,6 +210,15 @@ void mat2D_fill_sequence(Mat2D m, double start, double step) {
     for (size_t i = 0; i < m.rows; i++) {
         for (size_t j = 0; j < m.cols; j++) {
             MAT2D_AT(m, i, j) = start + step * mat2D_offset2d(m, i, j);
+        }
+    }
+}
+
+void mat2D_fill_uint32(Mat2D_uint32 m, uint32_t x)
+{
+    for (size_t i = 0; i < m.rows; ++i) {
+        for (size_t j = 0; j < m.cols; ++j) {
+            MAT2D_AT_UINT32(m, i, j) = x;
         }
     }
 }
