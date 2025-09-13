@@ -127,8 +127,8 @@ typedef struct {
 } Scene;
 
 Tri ae_create_tri(Point p1, Point p2, Point p3);
-void ae_create_copy_of_mesh(Tri_mesh *des, Tri *src_elements, size_t len);
-Tri_mesh ae_create_cube(const size_t len, uint32_t color);
+void ae_create_copy_of_tri_mesh(Tri_mesh *des, Tri *src_elements, size_t len);
+Tri_mesh ae_create_cube_tri_mesh(const size_t len, uint32_t color);
 
 void ae_init_camera(Scene *scene, int window_h, int window_w);
 Scene ae_init_scene(int window_h, int window_w);
@@ -136,21 +136,22 @@ void ae_reset_camera_pos(Scene *scene);
 
 void ae_point_to_mat2D(Point p, Mat2D m);
 Point ae_mat2D_to_point(Mat2D m);
-Tri_mesh ae_get_mesh_from_obj_file(char *file_path);
-Tri_mesh ae_get_mesh_from_stl_file(char *file_path);
-void ae_appand_copy_of_mesh(Tri_mesh_array *mesh_array, Tri_mesh mesh);
+Tri_mesh ae_get_tri_mesh_from_obj_file(char *file_path);
+Tri_mesh ae_get_tri_mesh_from_stl_file(char *file_path);
+void ae_appand_copy_of_tri_mesh(Tri_mesh_array *mesh_array, Tri_mesh mesh);
+Tri_mesh ae_get_tri_mesh_from_quad_mesh(Quad_mesh q_mesh);
 
 void ae_print_points(Curve p);
 void ae_print_tri(Tri tri, char *name, size_t padding);
-void ae_print_mesh(Tri_mesh mesh, char *name, size_t padding);
+void ae_print_tri_mesh(Tri_mesh mesh, char *name, size_t padding);
 
 void ae_calc_normal_to_tri(Mat2D normal, Tri tri);
 void ae_calc_normal_to_quad(Mat2D normal, Quad quad);
-void ae_translate_mesh(Tri_mesh mesh, float x, float y, float z);
+void ae_translate_tri_mesh(Tri_mesh mesh, float x, float y, float z);
 void ae_rotate_tri_mesh_Euler_xyz(Tri_mesh mesh, float phi_deg, float theta_deg, float psi_deg);
-void ae_set_mesh_bounding_box(Tri_mesh mesh, float *x_min, float *x_max, float *y_min, float *y_max, float *z_min, float *z_max);
+void ae_set_tri_mesh_bounding_box(Tri_mesh mesh, float *x_min, float *x_max, float *y_min, float *y_max, float *z_min, float *z_max);
 void ae_set_tri_center_zmin_zmax(Tri *tri);
-void ae_normalize_mesh(Tri_mesh mesh);
+void ae_normalize_tri_mesh(Tri_mesh mesh);
 
 Point ae_line_itersect_plane(Mat2D plane_p, Mat2D plane_n, Mat2D line_start, Mat2D line_end, float *t);
 float signed_dist_point_and_plane(Point p, Mat2D plane_p, Mat2D plane_n);
@@ -182,8 +183,7 @@ void ae_copy_z_buffer_to_screen(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer);
 #undef ALMOG_ENGINE_IMPLEMENTATION
 
 #define AE_PRINT_TRI(tri) ae_print_tri(tri, #tri, 0)
-#define AE_PRINT_MESH(mesh) ae_print_mesh(mesh, #mesh, 0)
-#define AE_PRINT_MESH_STATIC(mesh) ae_print_mesh_static(mesh, #mesh, 0)
+#define AE_PRINT_MESH(mesh) ae_print_tri_mesh(mesh, #mesh, 0)
 
 Tri ae_create_tri(Point p1, Point p2, Point p3)
 {
@@ -196,7 +196,7 @@ Tri ae_create_tri(Point p1, Point p2, Point p3)
     return tri;
 }
 
-void ae_create_copy_of_mesh(Tri_mesh *des, Tri *src_elements, size_t len)
+void ae_create_copy_of_tri_mesh(Tri_mesh *des, Tri *src_elements, size_t len)
 {
     Tri_mesh temp_des = *des;
     for (size_t i = 0; i < len; i++) {
@@ -205,7 +205,7 @@ void ae_create_copy_of_mesh(Tri_mesh *des, Tri *src_elements, size_t len)
     *des = temp_des;
 }
 
-Tri_mesh ae_create_cube(const size_t len, uint32_t color)
+Tri_mesh ae_create_cube_tri_mesh(const size_t len, uint32_t color)
 {
     Tri_mesh cube;
 
@@ -526,16 +526,16 @@ Tri_mesh ae_get_mesh_from_file(char *file_path)
     }
 
     if (!strncmp(file_extention, "STL", 3) || !strncmp(file_extention, "stl", 3)) {
-        return ae_get_mesh_from_stl_file(file_path);
+        return ae_get_tri_mesh_from_stl_file(file_path);
     } else if (!strncmp(file_extention, "obj", 3)) {
-        return ae_get_mesh_from_obj_file(file_path);
+        return ae_get_tri_mesh_from_obj_file(file_path);
     }
     
     Tri_mesh null_mesh = {0};
     return null_mesh;
 }
 
-Tri_mesh ae_get_mesh_from_obj_file(char *file_path)
+Tri_mesh ae_get_tri_mesh_from_obj_file(char *file_path)
 {
     char current_line[MAX_LEN_LINE], current_word[MAX_LEN_LINE], current_num_str[MAX_LEN_LINE];
     char file_name[MAX_LEN_LINE], file_extention[MAX_LEN_LINE], mesh_name[MAX_LEN_LINE];
@@ -736,7 +736,7 @@ Tri_mesh ae_get_mesh_from_obj_file(char *file_path)
     return mesh;
 }
 
-Tri_mesh ae_get_mesh_from_stl_file(char *file_path)
+Tri_mesh ae_get_tri_mesh_from_stl_file(char *file_path)
 {
     FILE *file;
     file = fopen(file_path, "rb");
@@ -796,7 +796,7 @@ Tri_mesh ae_get_mesh_from_stl_file(char *file_path)
     return mesh;
 }
 
-void ae_appand_copy_of_mesh(Tri_mesh_array *mesh_array, Tri_mesh mesh)
+void ae_appand_copy_of_tri_mesh(Tri_mesh_array *mesh_array, Tri_mesh mesh)
 {
     Tri_mesh_array temp_mesh_array = *mesh_array;
     Tri_mesh temp_mesh;
@@ -807,6 +807,43 @@ void ae_appand_copy_of_mesh(Tri_mesh_array *mesh_array, Tri_mesh mesh)
     ada_appand(Tri_mesh, temp_mesh_array, temp_mesh);
 
     *mesh_array = temp_mesh_array;
+}
+
+Tri_mesh ae_get_tri_mesh_from_quad_mesh(Quad_mesh q_mesh)
+{
+    Tri_mesh t_mesh;
+    ada_init_array(Tri, t_mesh);
+
+    for (size_t q_index = 0; q_index < q_mesh.length; q_index++) {
+        Quad current_q = q_mesh.elements[q_index];
+        Tri temp_t = {.light_intensity = current_q.light_intensity, .to_draw = current_q.to_draw};
+
+        temp_t.points[0] = current_q.points[0];
+        temp_t.colors[0] = current_q.colors[0];
+        temp_t.normals[0] = current_q.normal[0];
+        temp_t.points[1] = current_q.points[1];
+        temp_t.colors[1] = current_q.colors[1];
+        temp_t.normals[1] = current_q.normal[1];
+        temp_t.points[2] = current_q.points[2];
+        temp_t.colors[2] = current_q.colors[2];
+        temp_t.normals[2] = current_q.normal[2];
+
+        ada_appand(Tri, t_mesh, temp_t);
+
+        temp_t.points[0] = current_q.points[2];
+        temp_t.colors[0] = current_q.colors[2];
+        temp_t.normals[0] = current_q.normal[2];
+        temp_t.points[1] = current_q.points[3];
+        temp_t.colors[1] = current_q.colors[3];
+        temp_t.normals[1] = current_q.normal[3];
+        temp_t.points[2] = current_q.points[0];
+        temp_t.colors[2] = current_q.colors[0];
+        temp_t.normals[2] = current_q.normal[0];
+
+        ada_appand(Tri, t_mesh, temp_t);
+    }
+
+    return t_mesh;
 }
 
 void ae_print_points(Curve p)
@@ -823,7 +860,7 @@ void ae_print_tri(Tri tri, char *name, size_t padding)
     printf("%*s    draw? %d\n", (int)padding, "", tri.to_draw);
 }
 
-void ae_print_mesh(Tri_mesh mesh, char *name, size_t padding)
+void ae_print_tri_mesh(Tri_mesh mesh, char *name, size_t padding)
 {
     char tri_name[256];
     printf("%*s%s:\n", (int) padding, "", name);
@@ -883,7 +920,7 @@ void ae_calc_normal_to_quad(Mat2D normal, Quad quad)
     mat2D_free(c);
 }
 
-void ae_translate_mesh(Tri_mesh mesh, float x, float y, float z)
+void ae_translate_tri_mesh(Tri_mesh mesh, float x, float y, float z)
 {
     for (size_t i = 0; i < mesh.length; i++) {
         for (int j = 0; j < 3; j++) {
@@ -943,7 +980,7 @@ void ae_rotate_tri_mesh_Euler_xyz(Tri_mesh mesh, float phi_deg, float theta_deg,
     mat2D_free(des_point_mat);
 }
 
-void ae_set_mesh_bounding_box(Tri_mesh mesh, float *x_min, float *x_max, float *y_min, float *y_max, float *z_min, float *z_max)
+void ae_set_tri_mesh_bounding_box(Tri_mesh mesh, float *x_min, float *x_max, float *y_min, float *y_max, float *z_min, float *z_max)
 {
     float xmin = FLT_MAX, xmax = FLT_MIN;
     float ymin = FLT_MAX, ymax = FLT_MIN;
@@ -983,10 +1020,10 @@ void ae_set_tri_center_zmin_zmax(Tri *tri)
 }
 
 /* normalize all the points in between -1 and 1. the origin is in the center of the body. */
-void ae_normalize_mesh(Tri_mesh mesh)
+void ae_normalize_tri_mesh(Tri_mesh mesh)
 {
     float xmax, xmin, ymax, ymin, zmax, zmin;
-    ae_set_mesh_bounding_box(mesh, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax);
+    ae_set_tri_mesh_bounding_box(mesh, &xmin, &xmax, &ymin, &ymax, &zmin, &zmax);
 
     for (size_t t = 0; t < mesh.length; t++) {
         for (size_t p = 0; p < 3; p++) {

@@ -167,6 +167,7 @@ void adl_fill_tri_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, 
 void adl_draw_mesh(Mat2D_uint32 screen_mat, Tri_mesh mesh, uint32_t color, Offset_zoom_param offset_zoom_param);
 void adl_fill_mesh_scanline_rasterizer(Mat2D_uint32 screen_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param);
 void adl_fill_mesh_Pinedas_rasterizer(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param);
+void adl_fill_mesh_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param);
 
 float adl_linear_map(float s, float min_in, float max_in, float min_out, float max_out);
 void adl_quad2tris(Quad quad, Tri *tri1, Tri *tri2, char split_line[]);
@@ -888,7 +889,7 @@ void adl_fill_quad_interpolate_color_mean_value(Mat2D_uint32 screen_mat, Mat2D i
         return;
     }
 
-    // adl_draw_quad(screen_mat, inv_z_buffer, quad, quad.colors[0], offset_zoom_param);
+    adl_draw_quad(screen_mat, inv_z_buffer, quad, quad.colors[0], offset_zoom_param);
 
     for (int y = y_min; y <= y_max; y++) {
         for (int x = x_min; x <= x_max; x++) {
@@ -1146,6 +1147,10 @@ void adl_fill_tri_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, 
     p2 = tri.points[2];
 
     float w = edge_cross_point(p0, p1, p1, p2);
+    if (fabsf(w) < 1e-6) {
+        adl_draw_tri(screen_mat, tri, tri.colors[0], offset_zoom_param);
+        return;
+    }
     MATRIX2D_ASSERT(w != 0 && "triangle has area");
 
     /* fill conventions */
@@ -1242,6 +1247,19 @@ void adl_fill_mesh_Pinedas_rasterizer(Mat2D_uint32 screen_mat, Mat2D inv_z_buffe
         if (!tri.to_draw) continue;
 
         adl_fill_tri_Pinedas_rasterizer(screen_mat, inv_z_buffer_mat, tri, tri.light_intensity, offset_zoom_param);
+    }
+}
+
+void adl_fill_mesh_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param)
+{
+    for (size_t i = 0; i < mesh.length; i++) {
+        Tri tri = mesh.elements[i];
+        /* Reject invalid triangles */
+        adl_assert_tri_is_valid(tri);
+
+        if (!tri.to_draw) continue;
+
+        adl_fill_tri_Pinedas_rasterizer_interpolate_color(screen_mat, inv_z_buffer_mat, tri, tri.light_intensity, offset_zoom_param);
     }
 }
 
