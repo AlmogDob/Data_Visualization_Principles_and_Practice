@@ -456,8 +456,9 @@ Scene ae_init_scene(int window_h, int window_w)
 
     scene.light_direction = mat2D_alloc(3, 1);
     mat2D_fill(scene.light_direction, 0);
-    // MAT2D_AT(scene.light_direction, 1, 0) = -1;
+    MAT2D_AT(scene.light_direction, 1, 0) = -1;
     MAT2D_AT(scene.light_direction, 2, 0) = -1;
+    mat2D_normalize(scene.light_direction);
 
     scene.proj_mat = mat2D_alloc(4, 4);
     ae_set_projection_mat(scene.proj_mat, scene.camera.aspect_ratio, scene.camera.fov_deg, scene.camera.z_near, scene.camera.z_far);
@@ -1602,7 +1603,7 @@ Tri_mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, in
     Tri des_tri = tri;
 
     ae_calc_normal_to_tri(tri_normal, tri);
-    ae_point_to_mat2D(tri.points[0], temp_camera2tri);
+    ae_point_to_mat2D(tri.points[1], temp_camera2tri);
     mat2D_sub(temp_camera2tri, scene->camera.current_position);
     mat2D_transpose(camera2tri, temp_camera2tri);
     mat2D_transpose(light_directio_traspose, light_direction);
@@ -1611,8 +1612,10 @@ Tri_mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, in
     MAT2D_AT(dot_product, 0, 0) = MAT2D_AT(light_directio_traspose, 0, 0) * MAT2D_AT(tri_normal, 0, 0) + MAT2D_AT(light_directio_traspose, 0, 1) * MAT2D_AT(tri_normal, 1, 0) + MAT2D_AT(light_directio_traspose, 0, 2) * MAT2D_AT(tri_normal, 2, 0);
     des_tri.light_intensity = MAT2D_AT(dot_product, 0, 0);
 
-    if (des_tri.light_intensity <= 0.1) {
-        des_tri.light_intensity = 0.1;
+    des_tri.light_intensity = fminf(1, des_tri.light_intensity);
+
+    if (des_tri.light_intensity <= 0.4) {
+        des_tri.light_intensity = 0.4;
     }
 
     /* calc if tri is visible to the camera */
@@ -1738,12 +1741,12 @@ void ae_project_tri_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *
             if (temp_des.length == 0) {
                 break;
             }
-            if (temp_des.elements[tri_index].to_draw == false) {
-                ada_remove_unordered(Tri, temp_des, tri_index);
-                tri_index--;
-                tri_index = (int)fmaxf((float)tri_index, 0.0f);
-                continue;
-            }
+            // if (temp_des.elements[tri_index].to_draw == false) {
+            //     ada_remove_unordered(Tri, temp_des, tri_index);
+            //     tri_index--;
+            //     tri_index = (int)fmaxf((float)tri_index, 0.0f);
+            //     continue;
+            // }
             Tri clipped_tri1 = {0};
             Tri clipped_tri2 = {0};
             int num_clipped_tri;
@@ -1928,12 +1931,12 @@ void ae_project_quad_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad_mesh
             if (temp_des.length == 0) {
                 break;
             }
-            if (temp_des.elements[quad_index].to_draw == false) {
-                ada_remove_unordered(Quad, temp_des, quad_index);
-                quad_index--;
-                quad_index = (int)fmaxf((float)quad_index, 0.0f);
-                continue;
-            }
+            // if (temp_des.elements[quad_index].to_draw == false) {
+            //     ada_remove_unordered(Quad, temp_des, quad_index);
+            //     quad_index--;
+            //     quad_index = (int)fmaxf((float)quad_index, 0.0f);
+            //     continue;
+            // }
             Quad clipped_quad = {0};
             int num_clipped_quad;
             switch (plane_number) {

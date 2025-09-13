@@ -119,6 +119,8 @@ typedef struct {
     float max_e2;
     int num_samples_e1;
     int num_samples_e2;
+    float de1;
+    float de2;
     char plane[3];
 } Grid; /* direction: e1, e2 */
 
@@ -156,6 +158,8 @@ void adl_fill_quad(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer, Quad quad, uint3
 void adl_fill_quad_interpolate_color_tri(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer, Quad quad, char split_line[], Offset_zoom_param offset_zoom_param);
 void adl_fill_quad_interpolate_color_mean_value(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer, Quad quad, Offset_zoom_param offset_zoom_param);
 
+void adl_fill_quad_mesh(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Quad_mesh mesh, uint32_t color, Offset_zoom_param offset_zoom_param);
+
 void adl_draw_circle(Mat2D_uint32 screen_mat, float center_x, float center_y, float r, uint32_t color, Offset_zoom_param offset_zoom_param);
 void adl_fill_circle(Mat2D_uint32 screen_mat, float center_x, float center_y, float r, uint32_t color, Offset_zoom_param offset_zoom_param);
 
@@ -164,10 +168,10 @@ void adl_fill_tri_scanline_rasterizer(Mat2D_uint32 screen_mat, Tri tri, Offset_z
 void adl_fill_tri_Pinedas_rasterizer(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer, Tri tri, float light_intensity, Offset_zoom_param offset_zoom_param);
 void adl_fill_tri_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer, Tri tri, float light_intensity, Offset_zoom_param offset_zoom_param);
 
-void adl_draw_mesh(Mat2D_uint32 screen_mat, Tri_mesh mesh, uint32_t color, Offset_zoom_param offset_zoom_param);
-void adl_fill_mesh_scanline_rasterizer(Mat2D_uint32 screen_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param);
-void adl_fill_mesh_Pinedas_rasterizer(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param);
-void adl_fill_mesh_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param);
+void adl_draw_tri_mesh(Mat2D_uint32 screen_mat, Tri_mesh mesh, uint32_t color, Offset_zoom_param offset_zoom_param);
+void adl_fill_tri_mesh_scanline_rasterizer(Mat2D_uint32 screen_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param);
+void adl_fill_tri_mesh_Pinedas_rasterizer(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param);
+void adl_fill_tri_mesh_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param);
 
 float adl_linear_map(float s, float min_in, float max_in, float min_out, float max_out);
 void adl_quad2tris(Quad quad, Tri *tri1, Tri *tri2, char split_line[]);
@@ -210,6 +214,10 @@ void adl_draw_grid(Mat2D_uint32 screen_mat, Grid grid, uint32_t color, Offset_zo
 #define adl_assert_tri_is_valid(tri) adl_assert_point_is_valid(tri.points[0]); \
         adl_assert_point_is_valid(tri.points[1]);                              \
         adl_assert_point_is_valid(tri.points[2])
+#define adl_assert_quad_is_valid(quad) adl_assert_point_is_valid(quad.points[0]);   \
+        adl_assert_point_is_valid(quad.points[1]);                                  \
+        adl_assert_point_is_valid(quad.points[2]);                                  \
+        adl_assert_point_is_valid(quad.points[3])
 
 #define ADL_FIGURE_PADDING_PRECENTAGE 20
 #define ADL_MAX_FIGURE_PADDING 70
@@ -802,41 +810,52 @@ void adl_fill_quad(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer, Quad quad, uint3
     if (y_max >= (int)screen_mat.rows) y_max = (int)screen_mat.rows - 1;
 
     float w = edge_cross_point(p0, p1, p1, p2) + edge_cross_point(p2, p3, p3, p0);
-    if (w < 0) return;
-    if (w < 1e-6) {
-        adl_draw_quad(screen_mat, inv_z_buffer, quad, color, offset_zoom_param);
+    if (fabs(w) < 1e-6) {
+        adl_draw_quad(screen_mat, inv_z_buffer, quad, quad.colors[0], offset_zoom_param);
         return;
     }
-
-    adl_draw_quad(screen_mat, inv_z_buffer, quad, color, offset_zoom_param);
-    adl_draw_rectangle_min_max(screen_mat, x_min, x_max, y_min, y_max, color, offset_zoom_param);
-
-    /* fill conventions */
-    int bias0 = is_top_left(p0, p1) ? 0 : -1;
-    int bias1 = is_top_left(p1, p2) ? 0 : -1;
-    int bias2 = is_top_left(p2, p3) ? 0 : -1;
-    int bias3 = is_top_left(p3, p0) ? 0 : -1;
 
     for (int y = y_min; y <= y_max; y++) {
         for (int x = x_min; x <= x_max; x++) {
             Point p = {.x = x, .y = y, .z = 0};
 
-            float w0 = edge_cross_point(p0, p, p0, p1) + bias0;
-            float w1 = edge_cross_point(p1, p, p1, p2) + bias1;
-            float w2 = edge_cross_point(p2, p, p2, p3) + bias2;
-            float w3 = edge_cross_point(p3, p, p3, p0) + bias3;
+            bool in_01 = edge_cross_point(p0, p, p0, p1) >= 0;
+            bool in_12 = edge_cross_point(p1, p, p1, p2) >= 0;
+            bool in_23 = edge_cross_point(p2, p, p2, p3) >= 0;
+            bool in_30 = edge_cross_point(p3, p, p3, p0) >= 0;
 
-            float alpha = fabs(w1 / (w0 + w1 + w2 + w3));
-            float beta  = fabs(w2 / (w0 + w1 + w2 + w3));
-            float gamma = fabs(w3 / (w0 + w1 + w2 + w3));
-            float delta = fabs(w0 / (w0 + w1 + w2 + w3));
+            /* https://www.mn.uio.no/math/english/people/aca/michaelf/papers/mv3d.pdf. */
+            float size_p_to_p0 = sqrt((p0.x - p.x)*(p0.x - p.x) + (p0.y - p.y)*(p0.y - p.y));
+            float size_p_to_p1 = sqrt((p1.x - p.x)*(p1.x - p.x) + (p1.y - p.y)*(p1.y - p.y));
+            float size_p_to_p2 = sqrt((p2.x - p.x)*(p2.x - p.x) + (p2.y - p.y)*(p2.y - p.y));
+            float size_p_to_p3 = sqrt((p3.x - p.x)*(p3.x - p.x) + (p3.y - p.y)*(p3.y - p.y));
 
-            if (w0 * w >= 0 && w1 * w >= 0 &&  w2 * w >= 0 && w3 * w >= 0) {
-                int r, b, g;
+            float theta_3 = acosf(((p3.x - p.x) * (p0.x - p.x) + (p3.y - p.y) * (p0.y - p.y)) / (size_p_to_p3 * size_p_to_p0));
+            float theta_0 = acosf(((p0.x - p.x) * (p1.x - p.x) + (p0.y - p.y) * (p1.y - p.y)) / (size_p_to_p0 * size_p_to_p1));
+            float theta_1 = acosf(((p1.x - p.x) * (p2.x - p.x) + (p1.y - p.y) * (p2.y - p.y)) / (size_p_to_p1 * size_p_to_p2));
+            float theta_2 = acosf(((p2.x - p.x) * (p3.x - p.x) + (p2.y - p.y) * (p3.y - p.y)) / (size_p_to_p2 * size_p_to_p3));
+
+            float w0 = (tanf(theta_3 / 2) + tanf(theta_0 / 2)) / size_p_to_p0;
+            float w1 = (tanf(theta_0 / 2) + tanf(theta_1 / 2)) / size_p_to_p1;
+            float w2 = (tanf(theta_1 / 2) + tanf(theta_2 / 2)) / size_p_to_p2;
+            float w3 = (tanf(theta_2 / 2) + tanf(theta_3 / 2)) / size_p_to_p3;
+
+            float alpha = w0 / (w0 + w1 + w2 + w3);
+            float beta  = w1 / (w0 + w1 + w2 + w3);
+            float gamma = w2 / (w0 + w1 + w2 + w3);
+            float delta = w3 / (w0 + w1 + w2 + w3);
+
+            if (in_01 && in_12 &&  in_23 && in_30) {
+                int r, g, b;
                 HexARGB_RGB_VAR(color, r, g, b);
-                float rf = r * quad.light_intensity;
-                float gf = g * quad.light_intensity;
-                float bf = b * quad.light_intensity;
+                
+                uint8_t current_r = r;
+                uint8_t current_g = g;
+                uint8_t current_b = b;
+
+                float rf = current_r * quad.light_intensity;
+                float gf = current_g * quad.light_intensity;
+                float bf = current_b * quad.light_intensity;
                 uint8_t r8 = (uint8_t)fmaxf(0, fminf(255, rf));
                 uint8_t g8 = (uint8_t)fmaxf(0, fminf(255, gf));
                 uint8_t b8 = (uint8_t)fmaxf(0, fminf(255, bf));
@@ -888,8 +907,6 @@ void adl_fill_quad_interpolate_color_mean_value(Mat2D_uint32 screen_mat, Mat2D i
         adl_draw_quad(screen_mat, inv_z_buffer, quad, quad.colors[0], offset_zoom_param);
         return;
     }
-
-    adl_draw_quad(screen_mat, inv_z_buffer, quad, quad.colors[0], offset_zoom_param);
 
     for (int y = y_min; y <= y_max; y++) {
         for (int x = x_min; x <= x_max; x++) {
@@ -948,10 +965,23 @@ void adl_fill_quad_interpolate_color_mean_value(Mat2D_uint32 screen_mat, Mat2D i
 
                 if (inv_z >= MAT2D_AT(inv_z_buffer, y, x)) {
                     adl_draw_point(screen_mat, x, y, RGB_hexRGB(r8, g8, b8), offset_zoom_param);
-                    // MAT2D_AT(inv_z_buffer, y, x) = inv_z;
+                    MAT2D_AT(inv_z_buffer, y, x) = inv_z;
                 }
             }
         }
+    }
+}
+
+void adl_fill_quad_mesh(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Quad_mesh mesh, uint32_t color, Offset_zoom_param offset_zoom_param)
+{
+    for (size_t i = 0; i < mesh.length; i++) {
+        Quad quad = mesh.elements[i];
+        /* Reject invalid quad */
+        adl_assert_quad_is_valid(quad);
+
+        // if (!quad.to_draw) continue;
+
+        adl_fill_quad(screen_mat, inv_z_buffer_mat, quad, color, offset_zoom_param);
     }
 }
 
@@ -1141,6 +1171,8 @@ void adl_fill_tri_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, 
 {
     /* This function follows the rasterizer of 'Pikuma' shown in his YouTube video. You can fine the video in this link: https://youtu.be/k5wtuKWmV48. */
 
+    dprintD(tri.light_intensity);
+
     Point p0, p1, p2;
     p0 = tri.points[0];
     p1 = tri.points[1];
@@ -1217,7 +1249,7 @@ void adl_fill_tri_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, 
     }
 }
 
-void adl_draw_mesh(Mat2D_uint32 screen_mat, Tri_mesh mesh, uint32_t color, Offset_zoom_param offset_zoom_param)
+void adl_draw_tri_mesh(Mat2D_uint32 screen_mat, Tri_mesh mesh, uint32_t color, Offset_zoom_param offset_zoom_param)
 {
     for (size_t i = 0; i < mesh.length; i++) {
         Tri tri = mesh.elements[i];
@@ -1227,7 +1259,7 @@ void adl_draw_mesh(Mat2D_uint32 screen_mat, Tri_mesh mesh, uint32_t color, Offse
     }
 }
 
-void adl_fill_mesh_scanline_rasterizer(Mat2D_uint32 screen_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param)
+void adl_fill_tri_mesh_scanline_rasterizer(Mat2D_uint32 screen_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param)
 {
     for (size_t i = 0; i < mesh.length; i++) {
         Tri tri = mesh.elements[i];
@@ -1237,7 +1269,7 @@ void adl_fill_mesh_scanline_rasterizer(Mat2D_uint32 screen_mat, Tri_mesh mesh, O
     }
 }
 
-void adl_fill_mesh_Pinedas_rasterizer(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param)
+void adl_fill_tri_mesh_Pinedas_rasterizer(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param)
 {
     for (size_t i = 0; i < mesh.length; i++) {
         Tri tri = mesh.elements[i];
@@ -1250,7 +1282,7 @@ void adl_fill_mesh_Pinedas_rasterizer(Mat2D_uint32 screen_mat, Mat2D inv_z_buffe
     }
 }
 
-void adl_fill_mesh_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param)
+void adl_fill_tri_mesh_Pinedas_rasterizer_interpolate_color(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer_mat, Tri_mesh mesh, Offset_zoom_param offset_zoom_param)
 {
     for (size_t i = 0; i < mesh.length; i++) {
         Tri tri = mesh.elements[i];
@@ -1807,6 +1839,8 @@ Grid adl_create_cartesian_grid(float min_e1, float max_e1, float min_e2, float m
     float del_e1 = (max_e1 - min_e1) / num_samples_e1;
     float del_e2 = (max_e2 - min_e2) / num_samples_e2;
 
+    grid.de1 = del_e1;
+    grid.de2 = del_e2;
 
     if (!strncmp(plane, "XY", 3)) {
         for (int e1_index = 0; e1_index <= num_samples_e1; e1_index++) {
