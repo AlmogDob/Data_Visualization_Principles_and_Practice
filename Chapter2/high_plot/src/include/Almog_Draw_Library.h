@@ -111,6 +111,17 @@ typedef struct {
     bool to_draw_max_min_values;
 } Figure;
 
+typedef struct {
+    Curve_ada curves;
+    float min_e1;
+    float max_e1;
+    float min_e2;
+    float max_e2;
+    int num_samples_e1;
+    int num_samples_e2;
+    char plane[3];
+} Grid; /* direction: e1, e2 */
+
 
 #ifndef HexARGB_RGBA
 #define HexARGB_RGBA(x) ((x)>>(8*2)&0xFF), ((x)>>(8*1)&0xFF), ((x)>>(8*0)&0xFF), ((x)>>(8*3)&0xFF)
@@ -172,6 +183,9 @@ void adl_draw_max_min_values_on_figure(Figure figure);
 void adl_add_curve_to_figure(Figure *figure, Point *src_points, size_t src_len, uint32_t color);
 void adl_plot_curves_on_figure(Figure figure);
 void adl_interp_scalar_2D_on_figure(Figure figure, double *x_2Dmat, double *y_2Dmat, double *scalar_2Dmat, int ni, int nj, char color_scale[], float num_of_rotations);
+
+Grid adl_create_square_grid(float min_e1, float max_e1, float min_e2, float max_e2, int num_samples_e1, int num_samples_e2, char plane[], float third_direction_position);
+void adl_draw_grid(Mat2D_uint32 screen_mat, Grid grid, uint32_t color, Offset_zoom_param offset_zoom_param);
 
 #endif /*ALMOG_RENDER_SHAPES_H_*/
 
@@ -1758,6 +1772,183 @@ void adl_interp_scalar_2D_on_figure(Figure figure, double *x_2Dmat, double *y_2D
         adl_draw_max_min_values_on_figure(figure);
     }
 
+}
+
+Grid adl_create_square_grid(float min_e1, float max_e1, float min_e2, float max_e2, int num_samples_e1, int num_samples_e2, char plane[], float third_direction_position)
+{
+    Grid grid;
+    ada_init_array(Curve, grid.curves);
+
+    grid.min_e1 = min_e1;
+    grid.max_e1 = max_e1;
+    grid.min_e2 = min_e2;
+    grid.max_e2 = max_e2;
+    grid.num_samples_e1 = num_samples_e1;
+    grid.num_samples_e2 = num_samples_e2;
+    strncpy(grid.plane, plane, 2);
+
+    float del_e1 = (max_e1 - min_e1) / num_samples_e1;
+    float del_e2 = (max_e2 - min_e2) / num_samples_e2;
+
+
+    if (!strncmp(plane, "XY", 3)) {
+        for (int e1_index = 0; e1_index <= num_samples_e1; e1_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = min_e1 + e1_index * del_e1;
+            point_min.y = min_e2;
+            point_min.z = third_direction_position;
+
+            point_max.x = min_e1 + e1_index * del_e1;
+            point_max.y = max_e2;
+            point_max.z = third_direction_position;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+        for (int e2_index = 0; e2_index <= num_samples_e2; e2_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = min_e1;
+            point_min.y = min_e2 + e2_index * del_e2;
+            point_min.z = third_direction_position;
+
+            point_max.x = max_e1;
+            point_max.y = min_e2 + e2_index * del_e2;
+            point_max.z = third_direction_position;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+    } else if (!strncmp(plane, "XZ", 3)) {
+        for (int e1_index = 0; e1_index <= num_samples_e1; e1_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = min_e1 + e1_index * del_e1;
+            point_min.y = third_direction_position;
+            point_min.z = min_e2;
+
+            point_max.x = min_e1 + e1_index * del_e1;
+            point_max.y = third_direction_position;
+            point_max.z = max_e2;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+        for (int e2_index = 0; e2_index <= num_samples_e2; e2_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = min_e1;
+            point_min.y = third_direction_position;
+            point_min.z = min_e2 + e2_index * del_e2;
+
+            point_max.x = max_e1;
+            point_max.y = third_direction_position;
+            point_max.z = min_e2 + e2_index * del_e2;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+    } else if (!strncmp(plane, "YZ", 3)) {
+        for (int e1_index = 0; e1_index <= num_samples_e1; e1_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = third_direction_position;
+            point_min.y = min_e1 + e1_index * del_e1;
+            point_min.z = min_e2;
+
+            point_max.x = third_direction_position;
+            point_max.y = min_e1 + e1_index * del_e1;
+            point_max.z = max_e2;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+        for (int e2_index = 0; e2_index <= num_samples_e2; e2_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = third_direction_position;
+            point_min.y = min_e1;
+            point_min.z = min_e2 + e2_index * del_e2;
+
+            point_max.x = third_direction_position;
+            point_max.y = max_e1;
+            point_max.z = min_e2 + e2_index * del_e2;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+    } else if (!strncmp(plane, "ZY", 3)) {
+        for (int e1_index = 0; e1_index <= num_samples_e1; e1_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = third_direction_position;
+            point_min.y = min_e2;
+            point_min.z = min_e1 + e1_index * del_e1;
+
+            point_max.x = third_direction_position;
+            point_max.y = max_e2;
+            point_max.z = min_e1 + e1_index * del_e1;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+        for (int e2_index = 0; e2_index <= num_samples_e2; e2_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = third_direction_position;
+            point_min.y = min_e2 + e2_index * del_e2;
+            point_min.z = min_e1;
+
+            point_max.x = third_direction_position;
+            point_max.y = min_e2 + e2_index * del_e2;
+            point_max.z = max_e1;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+    }
+
+    return grid;
+}
+
+void adl_draw_grid(Mat2D_uint32 screen_mat, Grid grid, uint32_t color, Offset_zoom_param offset_zoom_param)
+{
+    for (size_t curve_index = 0; curve_index < grid.curves.length; curve_index++) {
+        adl_draw_lines(screen_mat, grid.curves.elements[curve_index].elements, grid.curves.elements[curve_index].length, color, offset_zoom_param);
+    }
 }
 
 #endif /*ALMOG_DRAW_LIBRARY_IMPLEMENTATION*/
