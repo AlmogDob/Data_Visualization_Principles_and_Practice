@@ -184,7 +184,7 @@ void adl_add_curve_to_figure(Figure *figure, Point *src_points, size_t src_len, 
 void adl_plot_curves_on_figure(Figure figure);
 void adl_interp_scalar_2D_on_figure(Figure figure, double *x_2Dmat, double *y_2Dmat, double *scalar_2Dmat, int ni, int nj, char color_scale[], float num_of_rotations);
 
-Grid adl_create_square_grid(float min_e1, float max_e1, float min_e2, float max_e2, int num_samples_e1, int num_samples_e2, char plane[], float third_direction_position);
+Grid adl_create_cartesian_grid(float min_e1, float max_e1, float min_e2, float max_e2, int num_samples_e1, int num_samples_e2, char plane[], float third_direction_position);
 void adl_draw_grid(Mat2D_uint32 screen_mat, Grid grid, uint32_t color, Offset_zoom_param offset_zoom_param);
 
 #endif /*ALMOG_RENDER_SHAPES_H_*/
@@ -820,10 +820,10 @@ void adl_fill_quad(Mat2D_uint32 screen_mat, Mat2D inv_z_buffer, Quad quad, uint3
         for (int x = x_min; x <= x_max; x++) {
             Point p = {.x = x, .y = y, .z = 0};
 
-            float w0 = edge_cross_point(p0, p1, p0, p) + bias0;
-            float w1 = edge_cross_point(p1, p2, p1, p) + bias1;
-            float w2 = edge_cross_point(p2, p3, p2, p) + bias2;
-            float w3 = edge_cross_point(p3, p0, p3, p) + bias3;
+            float w0 = edge_cross_point(p0, p, p0, p1) + bias0;
+            float w1 = edge_cross_point(p1, p, p1, p2) + bias1;
+            float w2 = edge_cross_point(p2, p, p2, p3) + bias2;
+            float w3 = edge_cross_point(p3, p, p3, p0) + bias3;
 
             float alpha = fabs(w1 / (w0 + w1 + w2 + w3));
             float beta  = fabs(w2 / (w0 + w1 + w2 + w3));
@@ -883,22 +883,21 @@ void adl_fill_quad_interpolate_color_mean_value(Mat2D_uint32 screen_mat, Mat2D i
     if (y_max >= (int)screen_mat.rows) y_max = (int)screen_mat.rows - 1;
 
     float w = edge_cross_point(p0, p1, p1, p2) + edge_cross_point(p2, p3, p3, p0);
-    if (w < 0) {
-        return;
-    }
-    if (w < 1e-6) {
+    if (fabs(w) < 1e-6) {
         adl_draw_quad(screen_mat, inv_z_buffer, quad, quad.colors[0], offset_zoom_param);
         return;
     }
+
+    // adl_draw_quad(screen_mat, inv_z_buffer, quad, quad.colors[0], offset_zoom_param);
 
     for (int y = y_min; y <= y_max; y++) {
         for (int x = x_min; x <= x_max; x++) {
             Point p = {.x = x, .y = y, .z = 0};
 
-            bool in_01 = edge_cross_point(p0, p1, p0, p) >= 0;
-            bool in_12 = edge_cross_point(p1, p2, p1, p) >= 0;
-            bool in_23 = edge_cross_point(p2, p3, p2, p) >= 0;
-            bool in_30 = edge_cross_point(p3, p0, p3, p) >= 0;
+            bool in_01 = edge_cross_point(p0, p, p0, p1) >= 0;
+            bool in_12 = edge_cross_point(p1, p, p1, p2) >= 0;
+            bool in_23 = edge_cross_point(p2, p, p2, p3) >= 0;
+            bool in_30 = edge_cross_point(p3, p, p3, p0) >= 0;
 
             /* https://www.mn.uio.no/math/english/people/aca/michaelf/papers/mv3d.pdf. */
             float size_p_to_p0 = sqrt((p0.x - p.x)*(p0.x - p.x) + (p0.y - p.y)*(p0.y - p.y));
@@ -948,7 +947,7 @@ void adl_fill_quad_interpolate_color_mean_value(Mat2D_uint32 screen_mat, Mat2D i
 
                 if (inv_z >= MAT2D_AT(inv_z_buffer, y, x)) {
                     adl_draw_point(screen_mat, x, y, RGB_hexRGB(r8, g8, b8), offset_zoom_param);
-                    MAT2D_AT(inv_z_buffer, y, x) = inv_z;
+                    // MAT2D_AT(inv_z_buffer, y, x) = inv_z;
                 }
             }
         }
@@ -1774,7 +1773,7 @@ void adl_interp_scalar_2D_on_figure(Figure figure, double *x_2Dmat, double *y_2D
 
 }
 
-Grid adl_create_square_grid(float min_e1, float max_e1, float min_e2, float max_e2, int num_samples_e1, int num_samples_e2, char plane[], float third_direction_position)
+Grid adl_create_cartesian_grid(float min_e1, float max_e1, float min_e2, float max_e2, int num_samples_e1, int num_samples_e2, char plane[], float third_direction_position)
 {
     Grid grid;
     ada_init_array(Curve, grid.curves);
@@ -1865,6 +1864,43 @@ Grid adl_create_square_grid(float min_e1, float max_e1, float min_e2, float max_
 
             ada_appand(Curve, grid.curves, curve);
         }
+    } else if (!strncmp(plane, "YX", 3)) {
+        for (int e1_index = 0; e1_index <= num_samples_e1; e1_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = min_e2;
+            point_min.y = min_e1 + e1_index * del_e1;
+            point_min.z = third_direction_position;
+
+            point_max.x = max_e2;
+            point_max.y = min_e1 + e1_index * del_e1;
+            point_max.z = third_direction_position;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+        for (int e2_index = 0; e2_index <= num_samples_e2; e2_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = min_e2 + e2_index * del_e2;
+            point_min.y = min_e1;
+            point_min.z = third_direction_position;
+
+            point_max.x = min_e2 + e2_index * del_e2;
+            point_max.y = max_e1;
+            point_max.z = third_direction_position;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
     } else if (!strncmp(plane, "YZ", 3)) {
         for (int e1_index = 0; e1_index <= num_samples_e1; e1_index++) {
             Curve curve;
@@ -1896,6 +1932,43 @@ Grid adl_create_square_grid(float min_e1, float max_e1, float min_e2, float max_
             point_max.x = third_direction_position;
             point_max.y = max_e1;
             point_max.z = min_e2 + e2_index * del_e2;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+    } else if (!strncmp(plane, "ZX", 3)) {
+        for (int e1_index = 0; e1_index <= num_samples_e1; e1_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = min_e2;
+            point_min.y = third_direction_position;
+            point_min.z = min_e1 + e1_index * del_e1;
+
+            point_max.x = max_e2;
+            point_max.y = third_direction_position;
+            point_max.z = min_e1 + e1_index * del_e1;
+
+            ada_appand(Point, curve, point_min);
+            ada_appand(Point, curve, point_max);
+
+            ada_appand(Curve, grid.curves, curve);
+        }
+        for (int e2_index = 0; e2_index <= num_samples_e2; e2_index++) {
+            Curve curve;
+            ada_init_array(Point, curve);
+            Point point_max = {0}, point_min = {0};
+
+            point_min.x = min_e2 + e2_index * del_e2;
+            point_min.y = third_direction_position;
+            point_min.z = min_e1;
+
+            point_max.x = min_e2 + e2_index * del_e2;
+            point_max.y = third_direction_position;
+            point_max.z = max_e1;
 
             ada_appand(Point, curve, point_min);
             ada_appand(Point, curve, point_max);

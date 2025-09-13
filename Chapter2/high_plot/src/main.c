@@ -10,15 +10,29 @@
 #include "./include/Almog_Engine.h"
 
 
-Grid grid;
-Grid grid_proj;
+Quad_mesh quads;
+Quad_mesh proj_quads;
 void setup(game_state_t *game_state)
 {
     game_state->to_limit_fps = 0;
 
-    grid      = adl_create_square_grid(-2, 2, -1, 1, 40, 40, "XZ", 1);
-    grid_proj = adl_create_square_grid(-2, 2, -1, 1, 40, 40, "XZ", 1);
+    ada_init_array(Quad, quads);
+    ada_init_array(Quad, proj_quads);
 
+    Quad quad = {0};
+
+    quad.points[3] = (Point){1  , 1 , 2, 1};
+    quad.points[2] = (Point){3  , 2 , 2, 1};
+    quad.points[1] = (Point){2  , 2.5 , 2, 1};
+    quad.points[0] = (Point){0.5, 2 , 2, 1};
+    quad.to_draw = true;
+    quad.light_intensity = 1;
+    quad.colors[0] = 0xFFFFFF;
+    quad.colors[1] = 0x0000FF;
+    quad.colors[2] = 0x00FF00;
+    quad.colors[3] = 0xFF0000;
+
+    ada_appand(Quad, quads, quad);
 }
 
 
@@ -27,11 +41,12 @@ void update(game_state_t *game_state)
     ae_set_projection_mat(game_state->scene.proj_mat, game_state->scene.camera.aspect_ratio, game_state->scene.camera.fov_deg, game_state->scene.camera.z_near, game_state->scene.camera.z_far);
     ae_set_view_mat(game_state->scene.view_mat, game_state->scene.camera, game_state->scene.up_direction);
 
-    ae_project_grid_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, grid_proj, grid, game_state->window_w, game_state->window_h);
+    ae_project_quad_mesh_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &proj_quads, quads, game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
 }
 
 void render(game_state_t *game_state)
 {
-    adl_draw_grid(game_state->window_pixels_mat, grid_proj, 0xFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
+    adl_fill_quad_interpolate_color_mean_value(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, proj_quads.elements[0], ADL_DEFAULT_OFFSET_ZOOM);
 
+    proj_quads.length = 0;
 }

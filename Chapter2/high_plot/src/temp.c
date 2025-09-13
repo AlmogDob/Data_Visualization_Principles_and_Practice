@@ -40,7 +40,7 @@ void setup(game_state_t *game_state)
         game_state->scene.projected_tri_meshes.elements[i].length = 0;
     }
 
-    ae_rotate_mesh_Euler_xyz(game_state->scene.in_world_tri_meshes.elements[0], -90, 0, 180);
+    ae_rotate_tri_mesh_Euler_xyz(game_state->scene.in_world_tri_meshes.elements[0], -90, 0, 180);
 
     // ae_translate_mesh(game_state->scene.in_world_meshes.elements[0], 0, 0, 2);
 }
@@ -51,7 +51,7 @@ void update(game_state_t *game_state)
     ae_set_view_mat(game_state->scene.view_mat, game_state->scene.camera, game_state->scene.up_direction);
 
     for (size_t i = 0; i < game_state->scene.in_world_tri_meshes.length; i++) {
-        ae_project_mesh_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(game_state->scene.projected_tri_meshes.elements[i]), game_state->scene.in_world_tri_meshes.elements[i], game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
+        ae_project_tri_mesh_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(game_state->scene.projected_tri_meshes.elements[i]), game_state->scene.in_world_tri_meshes.elements[i], game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
     }
 
 }

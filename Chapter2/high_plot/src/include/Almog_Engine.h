@@ -69,6 +69,10 @@ https://youtu.be/ih20l3pJoeU?si=CzQ8rjk5ZEOlqEHN. */
 #define ae_assert_tri_is_valid(tri) ae_assert_point_is_valid((tri).points[0]);  \
         ae_assert_point_is_valid((tri).points[1]);                              \
         ae_assert_point_is_valid((tri).points[2])
+#define ae_assert_quad_is_valid(quad) ae_assert_point_is_valid((quad).points[0]);   \
+        ae_assert_point_is_valid((quad).points[1]);                                 \
+        ae_assert_point_is_valid((quad).points[2]);                                 \
+        ae_assert_point_is_valid((quad).points[3])
 
 
 #ifndef TRI_MESH_ARRAY
@@ -141,8 +145,9 @@ void ae_print_tri(Tri tri, char *name, size_t padding);
 void ae_print_mesh(Tri_mesh mesh, char *name, size_t padding);
 
 void ae_calc_normal_to_tri(Mat2D normal, Tri tri);
+void ae_calc_normal_to_quad(Mat2D normal, Quad quad);
 void ae_translate_mesh(Tri_mesh mesh, float x, float y, float z);
-void ae_rotate_mesh_Euler_xyz(Tri_mesh mesh, float phi_deg, float theta_deg, float psi_deg);
+void ae_rotate_tri_mesh_Euler_xyz(Tri_mesh mesh, float phi_deg, float theta_deg, float psi_deg);
 void ae_set_mesh_bounding_box(Tri_mesh mesh, float *x_min, float *x_max, float *y_min, float *y_max, float *z_min, float *z_max);
 void ae_set_tri_center_zmin_zmax(Tri *tri);
 void ae_normalize_mesh(Tri_mesh mesh);
@@ -150,6 +155,7 @@ void ae_normalize_mesh(Tri_mesh mesh);
 Point ae_line_itersect_plane(Mat2D plane_p, Mat2D plane_n, Mat2D line_start, Mat2D line_end, float *t);
 float signed_dist_point_and_plane(Point p, Mat2D plane_p, Mat2D plane_n);
 int ae_tri_clip_with_plane(Tri tri_in, Mat2D plane_p, Mat2D plane_n, Tri *tri_out1, Tri *tri_out2);
+int ae_quad_clip_with_plane(Quad quad_in, Mat2D plane_p, Mat2D plane_n, Quad *quad_out);
 
 void ae_set_projection_mat(Mat2D proj_mat,float aspect_ratio, float FOV_deg, float z_near, float z_far);
 void ae_set_view_mat(Mat2D view_mat, Camera camera, Mat2D up);
@@ -157,8 +163,11 @@ Point ae_project_point_world2screen(Mat2D view_mat, Mat2D proj_mat, Point src, i
 Point ae_project_point_world2view(Mat2D view_mat, Point src);
 Point ae_project_point_view2screen(Mat2D proj_mat, Point src, int window_w, int window_h);
 Tri ae_transform_tri_to_view(Mat2D view_mat, Tri tri);
+Quad ae_transform_quad_to_view(Mat2D view_mat, Quad quad);
 Tri_mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int window_w, int window_h, Mat2D light_direction, Scene *scene);
-void ae_project_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *des, Tri_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene);
+void ae_project_tri_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *des, Tri_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene);
+Quad_mesh ae_project_quad_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad, int window_w, int window_h, Mat2D light_direction, Scene *scene);
+void ae_project_quad_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad_mesh *des, Quad_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene);
 void ae_project_grid_world2screen(Mat2D proj_mat, Mat2D view_mat, Grid des, Grid src, int window_w, int window_h);
 
 void ae_swap_tri(Tri *v, int i, int j);
@@ -849,6 +858,31 @@ void ae_calc_normal_to_tri(Mat2D normal, Tri tri)
     mat2D_free(c);
 }
 
+void ae_calc_normal_to_quad(Mat2D normal, Quad quad)
+{
+    AE_ASSERT(3 == normal.rows && 1 == normal.cols);
+    ae_assert_quad_is_valid(quad);
+
+    Mat2D a = mat2D_alloc(3, 1);
+    Mat2D b = mat2D_alloc(3, 1);
+    Mat2D c = mat2D_alloc(3, 1);
+
+    ae_point_to_mat2D(quad.points[0], a);
+    ae_point_to_mat2D(quad.points[1], b);
+    ae_point_to_mat2D(quad.points[2], c);
+
+    mat2D_sub(b, a);
+    mat2D_sub(c, a);
+
+    mat2D_cross(normal, b, c);
+
+    mat2D_mult(normal, 1/mat2D_calc_norma(normal));
+
+    mat2D_free(a);
+    mat2D_free(b);
+    mat2D_free(c);
+}
+
 void ae_translate_mesh(Tri_mesh mesh, float x, float y, float z)
 {
     for (size_t i = 0; i < mesh.length; i++) {
@@ -862,7 +896,7 @@ void ae_translate_mesh(Tri_mesh mesh, float x, float y, float z)
 
 /* phi around x, theta around y, psi around z.
 DCM = Cz*Cy*Cx */
-void ae_rotate_mesh_Euler_xyz(Tri_mesh mesh, float phi_deg, float theta_deg, float psi_deg)
+void ae_rotate_tri_mesh_Euler_xyz(Tri_mesh mesh, float phi_deg, float theta_deg, float psi_deg)
 {
     Mat2D RotZ = mat2D_alloc(3,3);
     mat2D_set_rot_mat_z(RotZ, psi_deg);
@@ -1147,6 +1181,133 @@ int ae_tri_clip_with_plane(Tri tri_in, Mat2D plane_p, Mat2D plane_n, Tri *tri_ou
     return -1;
 }
 
+/* returns number of inside quads
+return -1 on error */
+int ae_quad_clip_with_plane(Quad quad_in, Mat2D plane_p, Mat2D plane_n, Quad *quad_out)
+{
+    ae_assert_quad_is_valid(quad_in);
+
+    mat2D_normalize(plane_n);
+
+    /* if the signed distance is positive, the point lies on the "inside" of the plane */
+    Point inside_points[4];
+    Point outside_points[4];
+    int inside_points_count = 0;
+    int outside_points_count = 0;
+    
+    /* calc signed distance of each point of tri_in */
+    float d0 = signed_dist_point_and_plane(quad_in.points[0], plane_p, plane_n);
+    float d1 = signed_dist_point_and_plane(quad_in.points[1], plane_p, plane_n);
+    float d2 = signed_dist_point_and_plane(quad_in.points[2], plane_p, plane_n);
+    float d3 = signed_dist_point_and_plane(quad_in.points[3], plane_p, plane_n);
+    float t;
+
+    // float epsilon = 1e-3;
+    float epsilon = 0;
+    if (d0 >= epsilon) {
+        inside_points[inside_points_count++] = quad_in.points[0];
+    } else {
+        outside_points[outside_points_count++] = quad_in.points[0];
+    }
+    if (d1 >= epsilon) {
+        inside_points[inside_points_count++] = quad_in.points[1];
+    } else {
+        outside_points[outside_points_count++] = quad_in.points[1];
+    }
+    if (d2 >= epsilon) {
+        inside_points[inside_points_count++] = quad_in.points[2];
+    } else {
+        outside_points[outside_points_count++] = quad_in.points[2];
+    }
+    if (d3 >= epsilon) {
+        inside_points[inside_points_count++] = quad_in.points[3];
+    } else {
+        outside_points[outside_points_count++] = quad_in.points[3];
+    }
+
+    /* classifying the triangle points */
+    if (inside_points_count == 0) {
+        return 0;
+    } else if (inside_points_count == 4) {
+        *quad_out = quad_in;
+        return 1;
+    } else if (inside_points_count == 1 && outside_points_count == 3) {
+        Mat2D line_start = mat2D_alloc(3, 1);
+        Mat2D line_end   = mat2D_alloc(3, 1);
+
+        *quad_out = quad_in;        
+
+        (*quad_out).points[0] = inside_points[0];
+
+        ae_point_to_mat2D(inside_points[0], line_start);
+        ae_point_to_mat2D(outside_points[0], line_end);
+        (*quad_out).points[1] = ae_line_itersect_plane(plane_p, plane_n, line_start, line_end, &t);
+        (*quad_out).points[1].w = t * (outside_points[0].w - inside_points[0].w) + inside_points[0].w;
+
+        ae_point_to_mat2D(inside_points[0], line_start);
+        ae_point_to_mat2D(outside_points[1], line_end);
+        (*quad_out).points[2] = ae_line_itersect_plane(plane_p, plane_n, line_start, line_end, &t);
+        (*quad_out).points[2].w = t * (outside_points[1].w - inside_points[0].w) + inside_points[0].w;
+
+        ae_point_to_mat2D(inside_points[0], line_start);
+        ae_point_to_mat2D(outside_points[2], line_end);
+        (*quad_out).points[3] = ae_line_itersect_plane(plane_p, plane_n, line_start, line_end, &t);
+        (*quad_out).points[3].w = t * (outside_points[2].w - inside_points[0].w) + inside_points[0].w;
+
+        mat2D_free(line_start);
+        mat2D_free(line_end);
+
+        ae_assert_quad_is_valid(*quad_out);
+
+        return 1;
+    } else if (inside_points_count == 2 && outside_points_count == 2) {
+        Mat2D line_start = mat2D_alloc(3, 1);
+        Mat2D line_end   = mat2D_alloc(3, 1);
+        
+        *quad_out = quad_in;
+
+        (*quad_out).points[0] = inside_points[0];
+        (*quad_out).points[1] = inside_points[1];
+        ae_point_to_mat2D(inside_points[1], line_start);
+        ae_point_to_mat2D(outside_points[0], line_end);
+        (*quad_out).points[2] = ae_line_itersect_plane(plane_p, plane_n, line_start, line_end, &t);
+        (*quad_out).points[2].w = t * (outside_points[0].w - inside_points[1].w) + inside_points[1].w;
+
+        ae_point_to_mat2D(inside_points[0], line_start);
+        ae_point_to_mat2D(outside_points[1], line_end);
+        (*quad_out).points[3] = ae_line_itersect_plane(plane_p, plane_n, line_start, line_end, &t);
+        (*quad_out).points[3].w = t * (outside_points[1].w - inside_points[0].w) + inside_points[0].w;
+
+        mat2D_free(line_start);
+        mat2D_free(line_end);
+
+        ae_assert_quad_is_valid(*quad_out);
+
+        return 1;
+    } else if (inside_points_count == 3 && outside_points_count == 1) {
+        Mat2D line_start = mat2D_alloc(3, 1);
+        Mat2D line_end   = mat2D_alloc(3, 1);
+        
+        *quad_out = quad_in;
+
+        (*quad_out).points[0] = inside_points[0];
+        (*quad_out).points[1] = inside_points[1];
+        (*quad_out).points[2] = inside_points[2];
+        ae_point_to_mat2D(inside_points[2], line_start);
+        ae_point_to_mat2D(outside_points[0], line_end);
+        (*quad_out).points[3] = ae_line_itersect_plane(plane_p, plane_n, line_start, line_end, &t);
+        (*quad_out).points[3].w = t * (outside_points[0].w - inside_points[2].w) + inside_points[2].w;
+
+        mat2D_free(line_start);
+        mat2D_free(line_end);
+
+        ae_assert_quad_is_valid(*quad_out);
+
+        return 1;
+    }
+    return -1;
+}
+
 void ae_set_projection_mat(Mat2D proj_mat,float aspect_ratio, float FOV_deg, float z_near, float z_far)
 {
     AE_ASSERT(4 == proj_mat.cols); 
@@ -1359,6 +1520,39 @@ Tri ae_transform_tri_to_view(Mat2D view_mat, Tri tri)
     return des_tri;
 }
 
+Quad ae_transform_quad_to_view(Mat2D view_mat, Quad quad)
+{
+    ae_assert_quad_is_valid(quad);
+
+    Mat2D src_point_mat = mat2D_alloc(1,4);
+    Mat2D des_point_mat = mat2D_alloc(1,4);
+
+    Quad des_quad = quad;
+
+    for (int i = 0; i < 4; i++) {
+        MAT2D_AT(src_point_mat, 0, 0) = quad.points[i].x;
+        MAT2D_AT(src_point_mat, 0, 1) = quad.points[i].y;
+        MAT2D_AT(src_point_mat, 0, 2) = quad.points[i].z;
+        MAT2D_AT(src_point_mat, 0, 3) = 1;
+
+        mat2D_dot(des_point_mat, src_point_mat, view_mat);
+
+        double w = MAT2D_AT(des_point_mat, 0, 3);
+        AE_ASSERT(w == 1);
+        des_quad.points[i].x = MAT2D_AT(des_point_mat, 0, 0) / w;
+        des_quad.points[i].y = MAT2D_AT(des_point_mat, 0, 1) / w;
+        des_quad.points[i].z = MAT2D_AT(des_point_mat, 0, 2) / w;
+        des_quad.points[i].w = w;
+    }
+
+    mat2D_free(src_point_mat);
+    mat2D_free(des_point_mat);
+
+    ae_assert_quad_is_valid(des_quad);
+
+    return des_quad;
+}
+
 Tri_mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int window_w, int window_h, Mat2D light_direction, Scene *scene)
 {
     ae_assert_tri_is_valid(tri);
@@ -1456,7 +1650,7 @@ Tri_mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, in
     return temp_tri_array;
 }
 
-void ae_project_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *des, Tri_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene)
+void ae_project_tri_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *des, Tri_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene)
 {
     Tri_mesh temp_des = *des;
 
@@ -1552,6 +1746,186 @@ void ae_project_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *des,
     // if (temp_des.length > 2) {
     //     ae_qsort_tri(temp_des.elements, 0, temp_des.length-1);
     // }
+
+    mat2D_free(top_p);
+    mat2D_free(top_n);
+    mat2D_free(bottom_p);
+    mat2D_free(bottom_n);
+    mat2D_free(left_p);
+    mat2D_free(left_n);
+    mat2D_free(right_p);
+    mat2D_free(right_n);
+
+    *des = temp_des;
+}
+
+Quad_mesh ae_project_quad_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad, int window_w, int window_h, Mat2D light_direction, Scene *scene)
+{
+    ae_assert_quad_is_valid(quad);
+
+    Mat2D quad_normal = mat2D_alloc(3, 1);
+    Mat2D temp_camera2quad = mat2D_alloc(3, 1);
+    Mat2D camera2quad = mat2D_alloc(1, 3);
+    Mat2D light_directio_traspose = mat2D_alloc(1, 3);
+    Mat2D dot_product = mat2D_alloc(1, 1);
+    Quad des_quad = quad;
+
+    ae_calc_normal_to_quad(quad_normal, quad);
+    ae_point_to_mat2D(quad.points[0], temp_camera2quad);
+    mat2D_sub(temp_camera2quad, scene->camera.current_position);
+    mat2D_transpose(camera2quad, temp_camera2quad);
+    mat2D_transpose(light_directio_traspose, light_direction);
+
+    /* calc lighting intensity of tri */
+    MAT2D_AT(dot_product, 0, 0) = MAT2D_AT(light_directio_traspose, 0, 0) * MAT2D_AT(quad_normal, 0, 0) + MAT2D_AT(light_directio_traspose, 0, 1) * MAT2D_AT(quad_normal, 1, 0) + MAT2D_AT(light_directio_traspose, 0, 2) * MAT2D_AT(quad_normal, 2, 0);
+    des_quad.light_intensity = MAT2D_AT(dot_product, 0, 0);
+
+    if (des_quad.light_intensity <= 0.1) {
+        des_quad.light_intensity = 0.1;
+    }
+
+    /* calc if tri is visible to the camera */
+    MAT2D_AT(dot_product, 0, 0) = MAT2D_AT(camera2quad, 0, 0) * MAT2D_AT(quad_normal, 0, 0) + MAT2D_AT(camera2quad, 0, 1) * MAT2D_AT(quad_normal, 1, 0) + MAT2D_AT(camera2quad, 0, 2) * MAT2D_AT(quad_normal, 2, 0);
+    if (MAT2D_AT(dot_product, 0, 0) < 0) {
+        des_quad.to_draw = true;
+    } else {
+        des_quad.to_draw = false;
+    }
+
+    /* transform quad to camera view */
+    quad = ae_transform_quad_to_view(view_mat, quad);
+
+    /* clip quad */
+    Quad  clipped_quad = {0};
+    Mat2D z_plane_p = mat2D_alloc(3, 1);
+    Mat2D z_plane_n = mat2D_alloc(3, 1);
+    mat2D_fill(z_plane_p, 0);
+    mat2D_fill(z_plane_n, 0);
+    MAT2D_AT(z_plane_p, 2, 0) = scene->camera.z_near+0.01;
+    MAT2D_AT(z_plane_n, 2, 0) = 1;
+
+    int num_clipped_quad = ae_quad_clip_with_plane(quad, z_plane_p, z_plane_n, &clipped_quad);
+    Quad_mesh temp_quad_array; 
+    ada_init_array(Quad, temp_quad_array);
+    if (num_clipped_quad == -1) {
+        fprintf(stderr, "%s:%d: [error] problem with clipping quad\n", __FILE__, __LINE__);
+        exit(1);
+    } else if (num_clipped_quad == 0) {
+        ;
+    } else if (num_clipped_quad == 1) {
+        ae_assert_quad_is_valid(clipped_quad);
+        ada_appand(Quad, temp_quad_array, clipped_quad);
+    }
+    mat2D_free(z_plane_p);
+    mat2D_free(z_plane_n);
+
+    for (size_t temp_quad_index = 0; temp_quad_index < temp_quad_array.length; temp_quad_index++) {
+        /* project quad to screen */
+        for (int i = 0; i < 4; i++) {
+            des_quad.points[i] = ae_project_point_view2screen(proj_mat, temp_quad_array.elements[temp_quad_index].points[i], window_w, window_h);
+
+        }
+        ae_assert_quad_is_valid(des_quad);
+        temp_quad_array.elements[temp_quad_index] = des_quad;
+    }
+
+
+    mat2D_free(quad_normal);
+    mat2D_free(temp_camera2quad);
+    mat2D_free(camera2quad);
+    mat2D_free(light_directio_traspose);
+    mat2D_free(dot_product);
+
+    return temp_quad_array;
+}
+
+void ae_project_quad_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad_mesh *des, Quad_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene)
+{
+    Quad_mesh temp_des = *des;
+
+    size_t i;
+    for (i = 0; i < src.length; i++) {
+        Quad_mesh temp_quad_array = ae_project_quad_world2screen(proj_mat, view_mat, src.elements[i], window_w, window_h, light_direction, scene);
+
+        for (size_t quad_index = 0; quad_index < temp_quad_array.length; quad_index++) {
+            Quad temp_quad = temp_quad_array.elements[quad_index];
+            ada_appand(Quad, temp_des, temp_quad);
+        }
+
+        free(temp_quad_array.elements);
+    }
+
+
+    /* clip quad */
+    int offset = 50;
+    Mat2D top_p = mat2D_alloc(3, 1);
+    Mat2D top_n = mat2D_alloc(3, 1);
+    mat2D_fill(top_p, 0);
+    mat2D_fill(top_n, 0);
+    MAT2D_AT(top_p, 1, 0) = 0 + offset;
+    MAT2D_AT(top_n, 1, 0) = 1;
+
+    Mat2D bottom_p = mat2D_alloc(3, 1);
+    Mat2D bottom_n = mat2D_alloc(3, 1);
+    mat2D_fill(bottom_p, 0);
+    mat2D_fill(bottom_n, 0);
+    MAT2D_AT(bottom_p, 1, 0) = window_h - offset;
+    MAT2D_AT(bottom_n, 1, 0) = -1;
+
+    Mat2D left_p = mat2D_alloc(3, 1);
+    Mat2D left_n = mat2D_alloc(3, 1);
+    mat2D_fill(left_p, 0);
+    mat2D_fill(left_n, 0);
+    MAT2D_AT(left_p, 0, 0) = 0 + offset;
+    MAT2D_AT(left_n, 0, 0) = 1;
+
+    Mat2D right_p = mat2D_alloc(3, 1);
+    Mat2D right_n = mat2D_alloc(3, 1);
+    mat2D_fill(right_p, 0);
+    mat2D_fill(right_n, 0);
+    MAT2D_AT(right_p, 0, 0) = window_w - offset;
+    MAT2D_AT(right_n, 0, 0) = -1;
+
+    for (int plane_number = 0; plane_number < 4; plane_number++) {
+        for (int quad_index = 0; quad_index < (int)(temp_des.length); quad_index++) {
+            if (temp_des.length == 0) {
+                break;
+            }
+            if (temp_des.elements[quad_index].to_draw == false) {
+                ada_remove_unordered(Quad, temp_des, quad_index);
+                quad_index--;
+                quad_index = (int)fmaxf((float)quad_index, 0.0f);
+                continue;
+            }
+            Quad clipped_quad = {0};
+            int num_clipped_quad;
+            switch (plane_number) {
+                case 0:
+                    num_clipped_quad = ae_quad_clip_with_plane(temp_des.elements[quad_index], top_p, top_n, &clipped_quad);
+                break;
+                case 1:
+                    num_clipped_quad = ae_quad_clip_with_plane(temp_des.elements[quad_index], right_p, right_n, &clipped_quad);
+                break;
+                case 2:
+                    num_clipped_quad = ae_quad_clip_with_plane(temp_des.elements[quad_index], bottom_p, bottom_n, &clipped_quad);
+                break;
+                case 3:
+                    num_clipped_quad = ae_quad_clip_with_plane(temp_des.elements[quad_index], left_p, left_n, &clipped_quad);
+                break;
+            }
+            if (num_clipped_quad == -1) {
+                fprintf(stderr, "%s:%d: [error] problem with clipping quads\n", __FILE__, __LINE__);
+                exit(1);
+            } else if (num_clipped_quad == 0) {
+                ada_remove_unordered(Quad, temp_des, quad_index);
+                quad_index--;
+                quad_index = (int)fmaxf((float)quad_index, 0.0f);
+            } else if (num_clipped_quad == 1) {
+                ae_assert_quad_is_valid(clipped_quad);
+                temp_des.elements[quad_index] = clipped_quad;
+            }
+        }
+    }
 
     mat2D_free(top_p);
     mat2D_free(top_n);
