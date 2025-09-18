@@ -69,15 +69,16 @@ void update(game_state_t *game_state)
 
     ae_project_tri_mesh_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(hight_plot.proj_quads_tri), hight_plot.quads_in_tri, game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
     ae_project_quad_mesh_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(hight_plot.proj_quads), hight_plot.quads, game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
-    ae_project_grid_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, hight_plot.grid_proj, hight_plot.grid, game_state->window_w, game_state->window_h);
+    ae_project_grid_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, hight_plot.grid_proj, hight_plot.grid, game_state->window_w, game_state->window_h, &(game_state->scene));
 }
 
 void render(game_state_t *game_state)
 {
     adl_draw_grid(game_state->window_pixels_mat, hight_plot.grid_proj, 0xFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
 
-    // adl_fill_quad_mesh(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads, 0xFFFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
-    adl_fill_tri_mesh_Pinedas_rasterizer(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads_tri, ADL_DEFAULT_OFFSET_ZOOM);
+    adl_fill_quad_mesh(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads, 0xFFFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
+
+    // adl_fill_tri_mesh_Pinedas_rasterizer(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads_tri, 0xffffff, ADL_DEFAULT_OFFSET_ZOOM);
 
 
     hight_plot.proj_quads_tri.length = 0;

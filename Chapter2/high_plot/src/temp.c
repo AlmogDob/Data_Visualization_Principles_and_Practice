@@ -32,11 +32,11 @@ void setup(game_state_t *game_state)
 
 
     for (size_t i = 0; i < game_state->scene.original_tri_meshes.length; i++) {
-        ae_normalize_mesh(game_state->scene.original_tri_meshes.elements[i]);
+        ae_normalize_tri_mesh(game_state->scene.original_tri_meshes.elements[i]);
     }
     for (size_t i = 0; i < game_state->scene.original_tri_meshes.length; i++) {
-        ae_appand_copy_of_mesh(&(game_state->scene.in_world_tri_meshes), game_state->scene.original_tri_meshes.elements[i]);
-        ae_appand_copy_of_mesh(&(game_state->scene.projected_tri_meshes), game_state->scene.original_tri_meshes.elements[i]);
+        ae_appand_copy_of_tri_mesh(&(game_state->scene.in_world_tri_meshes), game_state->scene.original_tri_meshes.elements[i]);
+        ae_appand_copy_of_tri_mesh(&(game_state->scene.projected_tri_meshes), game_state->scene.original_tri_meshes.elements[i]);
         game_state->scene.projected_tri_meshes.elements[i].length = 0;
     }
 
@@ -59,7 +59,7 @@ void update(game_state_t *game_state)
 void render(game_state_t *game_state)
 {
     for (size_t i = 0; i < game_state->scene.projected_tri_meshes.length; i++) {
-        adl_fill_mesh_Pinedas_rasterizer(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, game_state->scene.projected_tri_meshes.elements[i], ADL_DEFAULT_OFFSET_ZOOM);
+        adl_fill_tri_mesh_Pinedas_rasterizer(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, game_state->scene.projected_tri_meshes.elements[i], 0xffffff, ADL_DEFAULT_OFFSET_ZOOM);
     }
 
     for (size_t i = 0; i < game_state->scene.in_world_tri_meshes.length; i++) {
