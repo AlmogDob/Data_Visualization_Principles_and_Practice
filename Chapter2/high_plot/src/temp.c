@@ -20,7 +20,7 @@ void setup(game_state_t *game_state)
     char file_path[MAX_LEN_LINE];
     strncpy(file_path, "./teapot.stl", MAX_LEN_LINE);
 
-    ada_appand(Tri_mesh, game_state->scene.original_tri_meshes, ae_get_mesh_from_file(file_path));
+    ada_appand(Tri_mesh, game_state->scene.original_tri_meshes, ae_get_tri_mesh_from_file(file_path));
 
     printf("[INFO] number of meshes: %zu\n", game_state->scene.original_tri_meshes.length);
     size_t sum = 0;

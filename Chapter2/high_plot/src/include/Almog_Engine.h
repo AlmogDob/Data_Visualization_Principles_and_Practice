@@ -136,6 +136,7 @@ void ae_reset_camera_pos(Scene *scene);
 
 void ae_point_to_mat2D(Point p, Mat2D m);
 Point ae_mat2D_to_point(Mat2D m);
+Tri_mesh ae_get_tri_mesh_from_file(char *file_path);
 Tri_mesh ae_get_tri_mesh_from_obj_file(char *file_path);
 Tri_mesh ae_get_tri_mesh_from_stl_file(char *file_path);
 void ae_appand_copy_of_tri_mesh(Tri_mesh_array *mesh_array, Tri_mesh mesh);
@@ -145,6 +146,10 @@ void ae_print_points(Curve p);
 void ae_print_tri(Tri tri, char *name, size_t padding);
 void ae_print_tri_mesh(Tri_mesh mesh, char *name, size_t padding);
 
+void ae_tri_set_normals(Tri *tri);
+Point ae_tri_get_average_normal(Tri tri);
+void ae_quad_set_normals(Quad *quad);
+Point ae_quad_get_average_normal(Quad quad);
 void ae_calc_normal_to_tri(Mat2D normal, Tri tri);
 void ae_calc_normal_to_quad(Mat2D normal, Quad quad);
 void ae_translate_tri_mesh(Tri_mesh mesh, float x, float y, float z);
@@ -508,11 +513,11 @@ void ae_point_to_mat2D(Point p, Mat2D m)
 
 Point ae_mat2D_to_point(Mat2D m)
 {
-    Point res = {.x = MAT2D_AT(m, 0, 0), .y = MAT2D_AT(m, 1, 0), .z = MAT2D_AT(m, 2, 0)};
+    Point res = {.x = MAT2D_AT(m, 0, 0), .y = MAT2D_AT(m, 1, 0), .z = MAT2D_AT(m, 2, 0), .w = 1};
     return res;
 }
 
-Tri_mesh ae_get_mesh_from_file(char *file_path)
+Tri_mesh ae_get_tri_mesh_from_file(char *file_path)
 {
     char file_extention[MAX_LEN_LINE], temp_word[MAX_LEN_LINE];
 
@@ -823,25 +828,25 @@ Tri_mesh ae_get_tri_mesh_from_quad_mesh(Quad_mesh q_mesh)
 
         temp_t.points[0] = current_q.points[0];
         temp_t.colors[0] = current_q.colors[0];
-        temp_t.normals[0] = current_q.normal[0];
+        temp_t.normals[0] = current_q.normals[0];
         temp_t.points[1] = current_q.points[1];
         temp_t.colors[1] = current_q.colors[1];
-        temp_t.normals[1] = current_q.normal[1];
+        temp_t.normals[1] = current_q.normals[1];
         temp_t.points[2] = current_q.points[2];
         temp_t.colors[2] = current_q.colors[2];
-        temp_t.normals[2] = current_q.normal[2];
+        temp_t.normals[2] = current_q.normals[2];
 
         ada_appand(Tri, t_mesh, temp_t);
 
         temp_t.points[0] = current_q.points[2];
         temp_t.colors[0] = current_q.colors[2];
-        temp_t.normals[0] = current_q.normal[2];
+        temp_t.normals[0] = current_q.normals[2];
         temp_t.points[1] = current_q.points[3];
         temp_t.colors[1] = current_q.colors[3];
-        temp_t.normals[1] = current_q.normal[3];
+        temp_t.normals[1] = current_q.normals[3];
         temp_t.points[2] = current_q.points[0];
         temp_t.colors[2] = current_q.colors[0];
-        temp_t.normals[2] = current_q.normal[0];
+        temp_t.normals[2] = current_q.normals[0];
 
         ada_appand(Tri, t_mesh, temp_t);
     }
@@ -871,6 +876,106 @@ void ae_print_tri_mesh(Tri_mesh mesh, char *name, size_t padding)
         snprintf(tri_name, 256, "tri %zu", i);
         ae_print_tri(mesh.elements[i], tri_name, 4);
     }
+}
+
+void ae_tri_set_normals(Tri *tri)
+{
+    ae_assert_tri_is_valid(*tri);
+
+    Mat2D point  = mat2D_alloc(3, 1);
+    Mat2D to_p   = mat2D_alloc(3, 1);
+    Mat2D from_p = mat2D_alloc(3, 1);
+    Mat2D normal = mat2D_alloc(3, 1);
+
+    for (int i = 0; i < 3; i++) {
+        int current_index  = i;
+        int next_index     = (i + 1) % 3;
+        int previous_index = (i - 1 + 3) % 3;
+        ae_point_to_mat2D(tri->points[current_index], point);
+        ae_point_to_mat2D(tri->points[next_index], from_p);
+        ae_point_to_mat2D(tri->points[previous_index], to_p);
+
+        mat2D_sub(from_p, point);
+        mat2D_sub(point, to_p);
+
+        mat2D_copy(to_p, point);
+
+        mat2D_cross(normal, to_p, from_p);
+        mat2D_normalize(normal);
+
+        tri->normals[current_index] = ae_mat2D_to_point(normal);
+    }
+
+    mat2D_free(point);
+    mat2D_free(to_p);
+    mat2D_free(from_p);
+    mat2D_free(normal);
+}
+
+Point ae_tri_get_average_normal(Tri tri)
+{
+    Point normal0 = tri.normals[0];
+    Point normal1 = tri.normals[1];
+    Point normal2 = tri.normals[2];
+
+    Point res;
+    res.x = (normal0.x + normal1.x + normal2.x) / 3;
+    res.y = (normal0.y + normal1.y + normal2.y) / 3;
+    res.z = (normal0.z + normal1.z + normal2.z) / 3;
+    res.w = (normal0.w + normal1.w + normal2.w) / 3;
+
+    return res;
+}
+
+void ae_quad_set_normals(Quad *quad)
+{
+    ae_assert_quad_is_valid(*quad);
+
+    Mat2D point  = mat2D_alloc(3, 1);
+    Mat2D to_p   = mat2D_alloc(3, 1);
+    Mat2D from_p = mat2D_alloc(3, 1);
+    Mat2D normal = mat2D_alloc(3, 1);
+
+    for (int i = 0; i < 4; i++) {
+        int current_index  = i;
+        int next_index     = (i + 1) % 4;
+        int previous_index = (i - 1 + 4) % 4;
+        ae_point_to_mat2D(quad->points[current_index], point);
+        ae_point_to_mat2D(quad->points[next_index], from_p);
+        ae_point_to_mat2D(quad->points[previous_index], to_p);
+
+        mat2D_sub(from_p, point);
+        mat2D_sub(point, to_p);
+
+        mat2D_copy(to_p, point);
+
+        mat2D_cross(normal, to_p, from_p);
+        mat2D_normalize(normal);
+
+        quad->normals[current_index] = ae_mat2D_to_point(normal);
+    }
+
+    mat2D_free(point);
+    mat2D_free(to_p);
+    mat2D_free(from_p);
+    mat2D_free(normal);
+
+}
+
+Point ae_quad_get_average_normal(Quad quad)
+{
+    Point normal0 = quad.normals[0];
+    Point normal1 = quad.normals[1];
+    Point normal2 = quad.normals[2];
+    Point normal3 = quad.normals[3];
+
+    Point res;
+    res.x = (normal0.x + normal1.x + normal2.x + normal3.x) / 4;
+    res.y = (normal0.y + normal1.y + normal2.y + normal3.y) / 4;
+    res.z = (normal0.z + normal1.z + normal2.z + normal3.z) / 4;
+    res.w = (normal0.w + normal1.w + normal2.w + normal3.w) / 4;
+
+    return res;
 }
 
 void ae_calc_normal_to_tri(Mat2D normal, Tri tri)
@@ -2293,9 +2398,12 @@ Tri_mesh ae_project_tri_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, in
     Mat2D light_directio_traspose = mat2D_alloc(1, 3);
     Mat2D dot_product = mat2D_alloc(1, 1);
     Tri des_tri = tri;
+    Point tri_normal_point;
 
+    tri_normal_point = ae_tri_get_average_normal(tri);
+    ae_point_to_mat2D(tri_normal_point, tri_normal);
     ae_calc_normal_to_tri(tri_normal, tri);
-    ae_point_to_mat2D(tri.points[1], temp_camera2tri);
+    ae_point_to_mat2D(tri.points[0], temp_camera2tri);
     mat2D_sub(temp_camera2tri, scene->camera.current_position);
     mat2D_transpose(camera2tri, temp_camera2tri);
     mat2D_transpose(light_directio_traspose, light_direction);
@@ -2399,7 +2507,7 @@ void ae_project_tri_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *
     }
 
     /* clip tir */
-    int offset = 50;
+    int offset = 0;
     Mat2D top_p = mat2D_alloc(3, 1);
     Mat2D top_n = mat2D_alloc(3, 1);
     mat2D_fill(top_p, 0);
@@ -2493,7 +2601,7 @@ void ae_project_tri_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *
 
 Quad_mesh ae_project_quad_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad, int window_w, int window_h, Mat2D light_direction, Scene *scene)
 {
-    ae_assert_quad_is_valid(quad);
+    // ae_assert_quad_is_valid(quad);
 
     Mat2D quad_normal = mat2D_alloc(3, 1);
     Mat2D temp_camera2quad = mat2D_alloc(3, 1);
@@ -2501,9 +2609,11 @@ Quad_mesh ae_project_quad_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad
     Mat2D light_directio_traspose = mat2D_alloc(1, 3);
     Mat2D dot_product = mat2D_alloc(1, 1);
     Quad des_quad = quad;
+    Point quad_normal_point;
 
-    ae_calc_normal_to_quad(quad_normal, quad);
-    ae_point_to_mat2D(quad.points[0], temp_camera2quad);
+    quad_normal_point = ae_quad_get_average_normal(quad);
+    ae_point_to_mat2D(quad_normal_point, quad_normal);
+    ae_point_to_mat2D(quad.points[1], temp_camera2quad);
     mat2D_sub(temp_camera2quad, scene->camera.current_position);
     mat2D_transpose(camera2quad, temp_camera2quad);
     mat2D_transpose(light_directio_traspose, light_direction);
@@ -2594,7 +2704,7 @@ void ae_project_quad_mesh_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad_mesh
 
 
     /* clip quad */
-    int offset = 50;
+    int offset = 0;
     Mat2D top_p = mat2D_alloc(3, 1);
     Mat2D top_n = mat2D_alloc(3, 1);
     mat2D_fill(top_p, 0);

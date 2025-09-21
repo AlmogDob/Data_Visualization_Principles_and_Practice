@@ -65,7 +65,7 @@ typedef struct {
 #define QUAD
 typedef struct {
     Point points[4];
-    Point normal[4];
+    Point normals[4];
     uint32_t colors[4];
     bool to_draw;
     float light_intensity;
