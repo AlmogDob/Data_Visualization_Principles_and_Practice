@@ -41,8 +41,8 @@ Hight_plot hight_plot_create(double (*hight_func)(double, double), float min_e1_
     ada_init_array(Quad, hight_plot.quads);
     ada_init_array(Quad, hight_plot.proj_quads);
 
-    hight_plot.grid      = adl_create_cartesian_grid(min_e1_pos, max_e1_pos, min_e2_pos, max_e2_pos, num_sample_e1, num_sample_e2, plane, third_direction_grid_position);
-    hight_plot.grid_proj = adl_create_cartesian_grid(min_e1_pos, max_e1_pos, min_e2_pos, max_e2_pos, num_sample_e1, num_sample_e2, plane, third_direction_grid_position);
+    hight_plot.grid      = adl_cartesian_grid_create(min_e1_pos, max_e1_pos, min_e2_pos, max_e2_pos, num_sample_e1, num_sample_e2, plane, third_direction_grid_position);
+    hight_plot.grid_proj = adl_cartesian_grid_create(min_e1_pos, max_e1_pos, min_e2_pos, max_e2_pos, num_sample_e1, num_sample_e2, plane, third_direction_grid_position);
     hight_plot.min_e1    = min_e1_val;
     hight_plot.min_e2    = min_e2_val;
     hight_plot.max_e1    = max_e1_val;
@@ -58,7 +58,10 @@ Hight_plot hight_plot_create(double (*hight_func)(double, double), float min_e1_
 
             Quad quad = {0};
 
-            quad.light_intensity = 1;
+            quad.light_intensity[0] = 1;
+            quad.light_intensity[1] = 1;
+            quad.light_intensity[2] = 1;
+            quad.light_intensity[3] = 1;
             quad.to_draw = 1;
             quad.points[3] = (Point){e1_val      , third_direction_grid_position - func_offset - fmaxf(fminf(hight_func(e1_val_func               , e2_val_func               ), max_func_val), min_func_val), e2_val      , 1};
             quad.points[2] = (Point){e1_val      , third_direction_grid_position - func_offset - fmaxf(fminf(hight_func(e1_val_func               , e2_val_func+hight_plot.de2), max_func_val), min_func_val), e2_val + de2, 1};
@@ -84,28 +87,27 @@ void setup(game_state_t *game_state)
 {
     game_state->to_limit_fps = 0;
 
-    // hight_plot = hight_plot_create(hight_func_trig, 0 , 6*PI, 0 , 6*PI, -1, 0, 1.1, -2, 2, -2, 2, 100, 100, "XZ", 1);
-    hight_plot = hight_plot_create(hight_func_exp , -2, 2   , -2, 2   , 0 , 3, 1.1, -2, 2, -2, 2, 25, 25, "XZ", 1);
+    hight_plot = hight_plot_create(hight_func_trig, 0 , 6*PI, 0 , 6*PI, -1, 0, 1.1, -2, 2, -2, 2, 100, 100, "XZ", 1);
+    // hight_plot = hight_plot_create(hight_func_exp , -2, 2   , -2, 2   , 0 , 3, 1.1, -2, 2, -2, 2, 25, 25, "XZ", 1);
 
 }
 
 
 void update(game_state_t *game_state)
 {
-    ae_set_projection_mat(game_state->scene.proj_mat, game_state->scene.camera.aspect_ratio, game_state->scene.camera.fov_deg, game_state->scene.camera.z_near, game_state->scene.camera.z_far);
-    ae_set_view_mat(game_state->scene.view_mat, game_state->scene.camera, game_state->scene.up_direction);
+    ae_projection_mat_set(game_state->scene.proj_mat, game_state->scene.camera.aspect_ratio, game_state->scene.camera.fov_deg, game_state->scene.camera.z_near, game_state->scene.camera.z_far);
+    ae_view_mat_set(game_state->scene.view_mat, game_state->scene.camera, game_state->scene.up_direction);
 
-    ae_project_quad_mesh_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(hight_plot.proj_quads), hight_plot.quads, game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
-    ae_project_grid_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, hight_plot.grid_proj, hight_plot.grid, game_state->window_w, game_state->window_h, &(game_state->scene));
+    ae_quad_mesh_project_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(hight_plot.proj_quads), hight_plot.quads, game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
+    ae_grid_project_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, hight_plot.grid_proj, hight_plot.grid, game_state->window_w, game_state->window_h, &(game_state->scene));
 }
 
 void render(game_state_t *game_state)
 {
-    adl_draw_grid(game_state->window_pixels_mat, hight_plot.grid_proj, 0xFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
+    adl_grid_draw(game_state->window_pixels_mat, hight_plot.grid_proj, 0xFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
 
-    adl_fill_quad_mesh(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads, 0xFFFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
-    // adl_draw_quad_mesh(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads, 0x0, ADL_DEFAULT_OFFSET_ZOOM);
-
+    adl_quad_mesh_fill_interpolate_normal(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads, 0xFFFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
+    // adl_quad_mesh_fill(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads, 0xFFFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
 
     hight_plot.proj_quads.length = 0;
 

@@ -20,7 +20,7 @@ void setup(game_state_t *game_state)
     char file_path[MAX_LEN_LINE];
     strncpy(file_path, "./teapot.stl", MAX_LEN_LINE);
 
-    ada_appand(Tri_mesh, game_state->scene.original_tri_meshes, ae_get_tri_mesh_from_file(file_path));
+    ada_appand(Tri_mesh, game_state->scene.original_tri_meshes, ae_tri_mesh_get_from_file(file_path));
 
     printf("[INFO] number of meshes: %zu\n", game_state->scene.original_tri_meshes.length);
     size_t sum = 0;
@@ -32,26 +32,26 @@ void setup(game_state_t *game_state)
 
 
     for (size_t i = 0; i < game_state->scene.original_tri_meshes.length; i++) {
-        ae_normalize_tri_mesh(game_state->scene.original_tri_meshes.elements[i]);
+        ae_tri_mesh_normalize(game_state->scene.original_tri_meshes.elements[i]);
     }
     for (size_t i = 0; i < game_state->scene.original_tri_meshes.length; i++) {
-        ae_appand_copy_of_tri_mesh(&(game_state->scene.in_world_tri_meshes), game_state->scene.original_tri_meshes.elements[i]);
-        ae_appand_copy_of_tri_mesh(&(game_state->scene.projected_tri_meshes), game_state->scene.original_tri_meshes.elements[i]);
+        ae_tri_mesh_appand_copy(&(game_state->scene.in_world_tri_meshes), game_state->scene.original_tri_meshes.elements[i]);
+        ae_tri_mesh_appand_copy(&(game_state->scene.projected_tri_meshes), game_state->scene.original_tri_meshes.elements[i]);
         game_state->scene.projected_tri_meshes.elements[i].length = 0;
     }
 
-    ae_rotate_tri_mesh_Euler_xyz(game_state->scene.in_world_tri_meshes.elements[0], -90, 0, 180);
+    ae_tri_mesh_rotate_Euler_xyz(game_state->scene.in_world_tri_meshes.elements[0], -90, 0, 180);
 
     // ae_translate_mesh(game_state->scene.in_world_meshes.elements[0], 0, 0, 2);
 }
 
 void update(game_state_t *game_state)
 {
-    ae_set_projection_mat(game_state->scene.proj_mat, game_state->scene.camera.aspect_ratio, game_state->scene.camera.fov_deg, game_state->scene.camera.z_near, game_state->scene.camera.z_far);
-    ae_set_view_mat(game_state->scene.view_mat, game_state->scene.camera, game_state->scene.up_direction);
+    ae_projection_mat_set(game_state->scene.proj_mat, game_state->scene.camera.aspect_ratio, game_state->scene.camera.fov_deg, game_state->scene.camera.z_near, game_state->scene.camera.z_far);
+    ae_view_mat_set(game_state->scene.view_mat, game_state->scene.camera, game_state->scene.up_direction);
 
     for (size_t i = 0; i < game_state->scene.in_world_tri_meshes.length; i++) {
-        ae_project_tri_mesh_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(game_state->scene.projected_tri_meshes.elements[i]), game_state->scene.in_world_tri_meshes.elements[i], game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
+        ae_tri_mesh_project_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(game_state->scene.projected_tri_meshes.elements[i]), game_state->scene.in_world_tri_meshes.elements[i], game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
     }
 
 }
@@ -59,7 +59,7 @@ void update(game_state_t *game_state)
 void render(game_state_t *game_state)
 {
     for (size_t i = 0; i < game_state->scene.projected_tri_meshes.length; i++) {
-        adl_fill_tri_mesh_Pinedas_rasterizer(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, game_state->scene.projected_tri_meshes.elements[i], 0xffffff, ADL_DEFAULT_OFFSET_ZOOM);
+        adl_tri_mesh_fill_Pinedas_rasterizer_interpolate_normal(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, game_state->scene.projected_tri_meshes.elements[i], 0xffffff, ADL_DEFAULT_OFFSET_ZOOM);
     }
 
     for (size_t i = 0; i < game_state->scene.in_world_tri_meshes.length; i++) {

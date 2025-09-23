@@ -175,7 +175,7 @@ void setup_window(game_state_t *game_state)
     game_state->window_pixels_mat = mat2D_alloc_uint32(game_state->window_h, game_state->window_w);
     game_state->inv_z_buffer_mat = mat2D_alloc(game_state->window_h, game_state->window_w);
 
-    game_state->scene = ae_init_scene(game_state->window_h, game_state->window_w);
+    game_state->scene = ae_scene_init(game_state->window_h, game_state->window_w);
 
     /*-----------------------------------*/
 
@@ -247,7 +247,7 @@ void process_input_window(game_state_t *game_state)
                     }
                 }
                 if (event.key.keysym.sym == SDLK_r) {
-                    ae_reset_camera_pos(&(game_state->scene));
+                    ae_camera_reset_pos(&(game_state->scene));
                 }
                 break;
             case SDL_MOUSEBUTTONDOWN:
