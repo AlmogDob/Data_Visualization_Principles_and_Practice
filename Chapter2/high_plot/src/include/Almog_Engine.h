@@ -73,6 +73,12 @@ https://youtu.be/ih20l3pJoeU?si=CzQ8rjk5ZEOlqEHN. */
         ae_assert_point_is_valid((quad).points[1]);                                 \
         ae_assert_point_is_valid((quad).points[2]);                                 \
         ae_assert_point_is_valid((quad).points[3])
+#define ae_point_normalize(p) (p).x = (p).x / sqrt(((p).x * (p).x) + ((p).y * (p).y) + ((p).z * (p).z));  \
+        (p).y = (p).y / sqrt(((p).x * (p).x) + ((p).y * (p).y) + ((p).z * (p).z));                        \
+        (p).z = (p).z / sqrt(((p).x * (p).x) + ((p).y * (p).y) + ((p).z * (p).z)) 
+#define ae_point_mult(p, const) (p).x *= const; \
+        (p).y *= const;                         \
+        (p).z *= const
 
 
 #ifndef TRI_MESH_ARRAY
@@ -463,6 +469,7 @@ Scene ae_scene_init(int window_h, int window_w)
 
     scene.light_direction = mat2D_alloc(3, 1);
     mat2D_fill(scene.light_direction, 0);
+    MAT2D_AT(scene.light_direction, 0, 0) = -0.5;
     MAT2D_AT(scene.light_direction, 1, 0) = -1;
     MAT2D_AT(scene.light_direction, 2, 0) = -1;
     mat2D_normalize(scene.light_direction);
@@ -2430,8 +2437,9 @@ Tri_mesh ae_tri_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, in
         des_tri.light_intensity[i] = fmaxf(0.2, fminf(1, MAT2D_AT(dot_product, 0, 0)));
     }
 
-    ae_tri_calc_normal(tri_normal, tri);
     /* calc if tri is visible to the camera */
+    ae_tri_calc_normal(tri_normal, tri);
+    // ae_point_to_mat2D(tri.normals[0], tri_normal);
     MAT2D_AT(dot_product, 0, 0) = MAT2D_AT(camera2tri, 0, 0) * MAT2D_AT(tri_normal, 0, 0) + MAT2D_AT(camera2tri, 0, 1) * MAT2D_AT(tri_normal, 1, 0) + MAT2D_AT(camera2tri, 0, 2) * MAT2D_AT(tri_normal, 2, 0);
     if (MAT2D_AT(dot_product, 0, 0) < 0) {
         des_tri.to_draw = true;
@@ -2616,16 +2624,9 @@ Quad_mesh ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad
     ae_assert_quad_is_valid(quad);
 
     Mat2D quad_normal = mat2D_alloc(3, 1);
-    Mat2D temp_camera2quad = mat2D_alloc(3, 1);
-    Mat2D camera2quad = mat2D_alloc(1, 3);
-    Mat2D light_directio_traspose = mat2D_alloc(1, 3);
+    Mat2D camera2quad = mat2D_alloc(3, 1);
     Mat2D dot_product = mat2D_alloc(1, 1);
     Quad des_quad = quad;
-
-    ae_point_to_mat2D(quad.points[1], temp_camera2quad);
-    mat2D_sub(temp_camera2quad, scene->camera.current_position);
-    mat2D_transpose(camera2quad, temp_camera2quad);
-    mat2D_transpose(light_directio_traspose, light_direction);
 
     /* calc lighting intensity of tri */
     for (int i = 0; i < 4; i++) {
@@ -2634,11 +2635,29 @@ Quad_mesh ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad
         des_quad.light_intensity[i] = fmaxf(0.2, fminf(1, MAT2D_AT(dot_product, 0, 0)));
     }
 
+    /* calc if tri is visible to the camera */
+    bool visible = 0;
+    #if 1
+    for (int i = 0; i < 4; i++) {
+        ae_point_to_mat2D(quad.points[i], camera2quad);
+        mat2D_sub(camera2quad, scene->camera.current_position);
+
+        ae_point_to_mat2D(quad.normals[i], quad_normal);
+        MAT2D_AT(dot_product, 0, 0) = MAT2D_AT(camera2quad, 0, 0) * MAT2D_AT(quad_normal, 0, 0) + MAT2D_AT(camera2quad, 1, 0) * MAT2D_AT(quad_normal, 1, 0) + MAT2D_AT(camera2quad, 2, 0) * MAT2D_AT(quad_normal, 2, 0);
+        visible = visible || (MAT2D_AT(dot_product, 0, 0) < 0);
+    }
+
+    #else
+    ae_point_to_mat2D(quad.points[0], camera2quad);
+    mat2D_sub(camera2quad, scene->camera.current_position);
+
     Point ave_norm = ae_quad_get_average_normal(quad);
     ae_point_to_mat2D(ave_norm, quad_normal);
-    /* calc if tri is visible to the camera */
-    MAT2D_AT(dot_product, 0, 0) = MAT2D_AT(camera2quad, 0, 0) * MAT2D_AT(quad_normal, 0, 0) + MAT2D_AT(camera2quad, 0, 1) * MAT2D_AT(quad_normal, 1, 0) + MAT2D_AT(camera2quad, 0, 2) * MAT2D_AT(quad_normal, 2, 0);
-    if (MAT2D_AT(dot_product, 0, 0) < 0) {
+    MAT2D_AT(dot_product, 0, 0) = MAT2D_AT(camera2quad, 0, 0) * MAT2D_AT(quad_normal, 0, 0) + MAT2D_AT(camera2quad, 1, 0) * MAT2D_AT(quad_normal, 1, 0) + MAT2D_AT(camera2quad, 2, 0) * MAT2D_AT(quad_normal, 2, 0);
+    visible = MAT2D_AT(dot_product, 0, 0) < 0;
+    #endif
+
+    if (visible) {
         des_quad.to_draw = true;
     } else {
         des_quad.to_draw = false;
@@ -2688,9 +2707,7 @@ Quad_mesh ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad
 
 
     mat2D_free(quad_normal);
-    mat2D_free(temp_camera2quad);
     mat2D_free(camera2quad);
-    mat2D_free(light_directio_traspose);
     mat2D_free(dot_product);
 
     return temp_quad_array;

@@ -1070,7 +1070,6 @@ void adl_quad_mesh_fill_interpolate_normal(Mat2D_uint32 screen_mat, Mat2D inv_z_
         Quad quad = mesh.elements[i];
         /* Reject invalid quad */
         adl_assert_quad_is_valid(quad);
-
         if (!quad.to_draw) continue;
 
         adl_quad_fill_interpolate_normal_mean_value(screen_mat, inv_z_buffer_mat, quad, color, offset_zoom_param);
