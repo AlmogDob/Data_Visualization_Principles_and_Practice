@@ -73,13 +73,25 @@ https://youtu.be/ih20l3pJoeU?si=CzQ8rjk5ZEOlqEHN. */
         ae_assert_point_is_valid((quad).points[1]);                                 \
         ae_assert_point_is_valid((quad).points[2]);                                 \
         ae_assert_point_is_valid((quad).points[3])
-#define ae_point_normalize(p) (p).x = (p).x / sqrt(((p).x * (p).x) + ((p).y * (p).y) + ((p).z * (p).z));  \
-        (p).y = (p).y / sqrt(((p).x * (p).x) + ((p).y * (p).y) + ((p).z * (p).z));                        \
-        (p).z = (p).z / sqrt(((p).x * (p).x) + ((p).y * (p).y) + ((p).z * (p).z)) 
+#define ae_point_normalize_xyz_temp(p, norma) (p).x = (p).x / norma;  \
+        (p).y = (p).y / norma;                        \
+        (p).z = (p).z / norma 
+#define ae_point_norma_calc(p) sqrt(((p).x * (p).x) + ((p).y * (p).y) + ((p).z * (p).z))
+#define ae_point_normalize_xyz(p) ae_point_normalize_xyz_temp(p, ae_point_norma_calc(p))
+#define ae_point_sub_point(p, p1, p2) (p).x = (p1).x - (p2).x;  \
+        (p).y = (p1).y - (p2).y;                                \
+        (p).z = (p1).z - (p2).z;                                \
+        (p).w = (p1).w - (p2).w
 #define ae_point_mult(p, const) (p).x *= const; \
         (p).y *= const;                         \
         (p).z *= const
 
+
+typedef enum {
+    AE_LIGHTING_FLAT,
+    AE_LIGHTING_SMOOTH,
+    AE_LIGHTING_MODE_LENGTH
+} Lighting_mode;
 
 #ifndef TRI_MESH_ARRAY
 #define TRI_MESH_ARRAY
@@ -117,6 +129,10 @@ typedef struct {
 } Camera;
 
 typedef struct {
+    Point light_direction_or_pos;
+} Light_source;
+
+typedef struct {
     Tri_mesh_array in_world_tri_meshes;
     Tri_mesh_array projected_tri_meshes;
     Tri_mesh_array original_tri_meshes;
@@ -127,9 +143,11 @@ typedef struct {
 
     Camera camera;
     Mat2D up_direction;
-    Mat2D light_direction;
     Mat2D proj_mat;
     Mat2D view_mat;
+
+    Light_source light_source0;
+    float ambient_light_intensity;
 } Scene;
 
 Tri         ae_tri_create(Point p1, Point p2, Point p3);
@@ -142,6 +160,7 @@ void        ae_camera_reset_pos(Scene *scene);
 
 void        ae_point_to_mat2D(Point p, Mat2D m);
 Point       ae_mat2D_to_point(Mat2D m);
+
 Tri_mesh    ae_tri_mesh_get_from_obj_file(char *file_path);
 Tri_mesh    ae_tri_mesh_get_from_stl_file(char *file_path);
 Tri_mesh    ae_tri_mesh_get_from_file(char *file_path);
@@ -164,6 +183,8 @@ void        ae_tri_mesh_set_bounding_box(Tri_mesh mesh, float *x_min, float *x_m
 void        ae_tri_set_center_zmin_zmax(Tri *tri);
 void        ae_tri_mesh_normalize(Tri_mesh mesh);
 
+void        ae_quad_light_intensity_calc(Quad *quad, Scene *scene, Lighting_mode lighting_mode);
+
 Point       ae_line_itersect_plane(Mat2D plane_p, Mat2D plane_n, Mat2D line_start, Mat2D line_end, float *t);
 int         ae_line_clip_with_plane(Point start_in, Point end_in, Mat2D plane_p, Mat2D plane_n, Point *start_out, Point *end_out);
 float       ae_signed_dist_point_and_plane(Point p, Mat2D plane_p, Mat2D plane_n);
@@ -180,8 +201,8 @@ Tri         ae_tri_transform_to_view(Mat2D view_mat, Tri tri);
 Quad        ae_quad_transform_to_view(Mat2D view_mat, Quad quad);
 Tri_mesh    ae_tri_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri tri, int window_w, int window_h, Mat2D light_direction, Scene *scene);
 void        ae_tri_mesh_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *des, Tri_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene);
-Quad_mesh   ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad, int window_w, int window_h, Mat2D light_direction, Scene *scene);
-void        ae_quad_mesh_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad_mesh *des, Quad_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene);
+Quad_mesh   ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad, int window_w, int window_h, Scene *scene);
+void        ae_quad_mesh_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad_mesh *des, Quad_mesh src, int window_w, int window_h, Scene *scene);
 void        ae_grid_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Grid des, Grid src, int window_w, int window_h, Scene *scene);
 
 void        ae_tri_swap(Tri *v, int i, int j);
@@ -467,12 +488,12 @@ Scene ae_scene_init(int window_h, int window_w)
     mat2D_fill(scene.up_direction, 0);
     MAT2D_AT(scene.up_direction, 1, 0) = 1;
 
-    scene.light_direction = mat2D_alloc(3, 1);
-    mat2D_fill(scene.light_direction, 0);
-    MAT2D_AT(scene.light_direction, 0, 0) = -0.5;
-    MAT2D_AT(scene.light_direction, 1, 0) = -1;
-    MAT2D_AT(scene.light_direction, 2, 0) = -1;
-    mat2D_normalize(scene.light_direction);
+    scene.light_source0.light_direction_or_pos.x = -0.5;
+    scene.light_source0.light_direction_or_pos.y = -1;
+    scene.light_source0.light_direction_or_pos.z = -1;
+    scene.light_source0.light_direction_or_pos.w = 0;
+    ae_point_normalize_xyz(scene.light_source0.light_direction_or_pos);
+    scene.ambient_light_intensity = 0.2;
 
     scene.proj_mat = mat2D_alloc(4, 4);
     ae_projection_mat_set(scene.proj_mat, scene.camera.aspect_ratio, scene.camera.fov_deg, scene.camera.z_near, scene.camera.z_far);
@@ -1003,6 +1024,8 @@ Point ae_quad_get_average_normal(Quad quad)
     res.z = (normal0.z + normal1.z + normal2.z + normal3.z) / 4;
     res.w = (normal0.w + normal1.w + normal2.w + normal3.w) / 4;
 
+    ae_point_normalize_xyz(res);
+
     return res;
 }
 
@@ -1186,6 +1209,46 @@ void ae_tri_mesh_normalize(Tri_mesh mesh)
             mesh.elements[t].points[p].y = y;
             mesh.elements[t].points[p].z = z;
         }
+    }
+}
+
+void ae_quad_light_intensity_calc(Quad *quad, Scene *scene, Lighting_mode lighting_mode)
+{
+    /* based on the lighting model described in: 'Alexandru C. Telea-Data Visualization_ Principles and Practice-A K Peters_CRC Press (2014)' Pg.29 */
+    Point L = {0};
+    if (scene->light_source0.light_direction_or_pos.w == 0) {
+        L = scene->light_source0.light_direction_or_pos;
+        ae_point_normalize_xyz(L);
+    } else {
+        Point l = scene->light_source0.light_direction_or_pos;
+        Point p = ae_mat2D_to_point(scene->camera.current_position);
+        Point pml = {0};
+        ae_point_sub_point(pml, p, l);
+        ae_point_normalize_xyz(pml);
+        L = pml;
+        L.w = 0;
+    }
+
+    switch (lighting_mode) {
+    case AE_LIGHTING_FLAT:
+        Point ave_norm = ae_quad_get_average_normal(*quad);
+        for (int i = 0; i < 4; i++) {
+            float dot_product = L.x * ave_norm.x + L.y * ave_norm.y + L.z * ave_norm.z;
+            quad->light_intensity[i] = fmaxf(scene->ambient_light_intensity, fminf(1, dot_product));
+        }
+        break;
+    case AE_LIGHTING_SMOOTH:
+        for (int i = 0; i < 4; i++) {
+            float dot_product = scene->light_source0.light_direction_or_pos.x * quad->normals[i].x + scene->light_source0.light_direction_or_pos.y * quad->normals[i].y + scene->light_source0.light_direction_or_pos.z * quad->normals[i].z;
+            quad->light_intensity[i] = fmaxf(scene->ambient_light_intensity, fminf(1, dot_product));
+        }
+        break;
+    default:
+        for (int i = 0; i < 4; i++) {
+            float dot_product = scene->light_source0.light_direction_or_pos.x * quad->normals[i].x + scene->light_source0.light_direction_or_pos.y * quad->normals[i].y + scene->light_source0.light_direction_or_pos.z * quad->normals[i].z;
+            quad->light_intensity[i] = fmaxf(scene->ambient_light_intensity, fminf(1, dot_product));
+        }
+        break;
     }
 }
 
@@ -2619,7 +2682,7 @@ void ae_tri_mesh_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Tri_mesh *
     *des = temp_des;
 }
 
-Quad_mesh ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad, int window_w, int window_h, Mat2D light_direction, Scene *scene)
+Quad_mesh ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad, int window_w, int window_h, Scene *scene)
 {
     ae_assert_quad_is_valid(quad);
 
@@ -2629,13 +2692,17 @@ Quad_mesh ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad
     Quad des_quad = quad;
 
     /* calc lighting intensity of tri */
+    #if 1
+        ae_quad_light_intensity_calc(&des_quad, scene, AE_LIGHTING_FLAT);
+    #else
     for (int i = 0; i < 4; i++) {
         ae_point_to_mat2D(quad.normals[i], quad_normal);
-        MAT2D_AT(dot_product, 0, 0) = MAT2D_AT(light_direction, 0, 0) * MAT2D_AT(quad_normal, 0, 0) + MAT2D_AT(light_direction, 1, 0) * MAT2D_AT(quad_normal, 1, 0) + MAT2D_AT(light_direction, 2, 0) * MAT2D_AT(quad_normal, 2, 0);
+        MAT2D_AT(dot_product, 0, 0) = scene->light_source0.light_direction_or_pos.x * MAT2D_AT(quad_normal, 0, 0) + scene->light_source0.light_direction_or_pos.y * MAT2D_AT(quad_normal, 1, 0) + scene->light_source0.light_direction_or_pos.z * MAT2D_AT(quad_normal, 2, 0);
         des_quad.light_intensity[i] = fmaxf(0.2, fminf(1, MAT2D_AT(dot_product, 0, 0)));
     }
+    #endif
 
-    /* calc if tri is visible to the camera */
+    /* calc if quad is visible to the camera */
     bool visible = 0;
     #if 1
     for (int i = 0; i < 4; i++) {
@@ -2646,7 +2713,6 @@ Quad_mesh ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad
         MAT2D_AT(dot_product, 0, 0) = MAT2D_AT(camera2quad, 0, 0) * MAT2D_AT(quad_normal, 0, 0) + MAT2D_AT(camera2quad, 1, 0) * MAT2D_AT(quad_normal, 1, 0) + MAT2D_AT(camera2quad, 2, 0) * MAT2D_AT(quad_normal, 2, 0);
         visible = visible || (MAT2D_AT(dot_product, 0, 0) < 0);
     }
-
     #else
     ae_point_to_mat2D(quad.points[0], camera2quad);
     mat2D_sub(camera2quad, scene->camera.current_position);
@@ -2713,13 +2779,13 @@ Quad_mesh ae_quad_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad quad
     return temp_quad_array;
 }
 
-void ae_quad_mesh_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad_mesh *des, Quad_mesh src, int window_w, int window_h, Mat2D light_direction, Scene *scene)
+void ae_quad_mesh_project_world2screen(Mat2D proj_mat, Mat2D view_mat, Quad_mesh *des, Quad_mesh src, int window_w, int window_h, Scene *scene)
 {
     Quad_mesh temp_des = *des;
 
     size_t i;
     for (i = 0; i < src.length; i++) {
-        Quad_mesh temp_quad_array = ae_quad_project_world2screen(proj_mat, view_mat, src.elements[i], window_w, window_h, light_direction, scene);
+        Quad_mesh temp_quad_array = ae_quad_project_world2screen(proj_mat, view_mat, src.elements[i], window_w, window_h, scene);
 
         for (size_t quad_index = 0; quad_index < temp_quad_array.length; quad_index++) {
             Quad temp_quad = temp_quad_array.elements[quad_index];

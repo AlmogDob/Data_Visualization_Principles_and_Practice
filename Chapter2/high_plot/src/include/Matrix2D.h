@@ -53,8 +53,8 @@ typedef struct {
 #define MAT2D_AT(m, i, j) (m).elements[mat2D_offset2d((m), (i), (j))]
 #define MAT2D_AT_UINT32(m, i, j) (m).elements[mat2D_offset2d_uint32((m), (i), (j))]
 #else /* use this macro for batter performance but no assertion */
-#define MAT2D_AT(m, i, j) (m).elements[i * m.stride_r + j]
-#define MAT2D_AT_UINT32(m, i, j) (m).elements[i * m.stride_r + j]
+#define MAT2D_AT(m, i, j) (m).elements[(i) * (m).stride_r + (j)]
+#define MAT2D_AT_UINT32(m, i, j) (m).elements[(i) * (m).stride_r + (j)]
 #endif
 
 #ifndef PI

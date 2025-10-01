@@ -100,19 +100,19 @@ Hight_plot hight_plot_create_smooth_approximate(double (*hight_func)(double, dou
             quad.normals[3].x = -(hight_func(e1_val_func + step_size, e2_val_func) - hight_func(e1_val_func - step_size, e2_val_func)) / (2 * step_size); 
             quad.normals[3].y = -1;
             quad.normals[3].z = -(hight_func(e1_val_func, e2_val_func + step_size) - hight_func(e1_val_func, e2_val_func - step_size)) / (2 * step_size); 
-            ae_point_normalize(quad.normals[3]);
+            ae_point_normalize_xyz(quad.normals[3]);
             quad.normals[2].x = -(hight_func(e1_val_func + step_size, e2_val_func + de2_func) - hight_func(e1_val_func - step_size, e2_val_func + de2_func)) / (2 * step_size);
             quad.normals[2].y = -1;
             quad.normals[2].z = -(hight_func(e1_val_func, e2_val_func + de2_func + step_size) - hight_func(e1_val_func, e2_val_func + de2_func - step_size)) / (2 * step_size);
-            ae_point_normalize(quad.normals[2]);
+            ae_point_normalize_xyz(quad.normals[2]);
             quad.normals[1].x = -(hight_func(e1_val_func + de1_func + step_size, e2_val_func + de2_func) - hight_func(e1_val_func + de1_func - step_size, e2_val_func + de2_func)) / (2 * step_size);
             quad.normals[1].y = -1;
             quad.normals[1].z = -(hight_func(e1_val_func + de1_func, e2_val_func + de2_func + step_size) - hight_func(e1_val_func + de1_func, e2_val_func + de2_func - step_size)) / (2 * step_size);
-            ae_point_normalize(quad.normals[1]);
+            ae_point_normalize_xyz(quad.normals[1]);
             quad.normals[0].x = -(hight_func(e1_val_func + de1_func + step_size, e2_val_func) - hight_func(e1_val_func + de1_func - step_size, e2_val_func)) / (2 * step_size);
             quad.normals[0].y = -1;
             quad.normals[0].z = -(hight_func(e1_val_func + de1_func, e2_val_func + step_size) - hight_func(e1_val_func + de1_func, e2_val_func - step_size)) / (2 * step_size);
-            ae_point_normalize(quad.normals[0]);
+            ae_point_normalize_xyz(quad.normals[0]);
 
             quad.colors[0] = 0xFFFFFFFF;
             quad.colors[1] = 0xFFFFFFFF;
@@ -167,19 +167,19 @@ Hight_plot hight_plot_create_smooth(double (*hight_func)(double, double), double
             quad.normals[3].x = -hight_func_deriv(e1_val_func, e2_val_func, 'x'); 
             quad.normals[3].y = -1;
             quad.normals[3].z = -hight_func_deriv(e1_val_func, e2_val_func, 'y'); 
-            ae_point_normalize(quad.normals[3]);
+            ae_point_normalize_xyz(quad.normals[3]);
             quad.normals[2].x = -hight_func_deriv(e1_val_func, e2_val_func + de2_func, 'x');
             quad.normals[2].y = -1;
             quad.normals[2].z = -hight_func_deriv(e1_val_func, e2_val_func + de2_func, 'y');
-            ae_point_normalize(quad.normals[2]);
+            ae_point_normalize_xyz(quad.normals[2]);
             quad.normals[1].x = -hight_func_deriv(e1_val_func + de1_func, e2_val_func + de2_func, 'x');
             quad.normals[1].y = -1;
             quad.normals[1].z = -hight_func_deriv(e1_val_func + de1_func, e2_val_func + de2_func, 'y');
-            ae_point_normalize(quad.normals[1]);
+            ae_point_normalize_xyz(quad.normals[1]);
             quad.normals[0].x = -hight_func_deriv(e1_val_func + de1_func, e2_val_func, 'x');
             quad.normals[0].y = -1;
             quad.normals[0].z = -hight_func_deriv(e1_val_func + de1_func, e2_val_func, 'y');
-            ae_point_normalize(quad.normals[0]);
+            ae_point_normalize_xyz(quad.normals[0]);
 
             quad.colors[0] = 0xFFFFFFFF;
             quad.colors[1] = 0xFFFFFFFF;
@@ -213,8 +213,6 @@ Hight_plot hight_plot_create_discrete(double (*hight_func)(double, double), floa
 
     float de1      = hight_plot.grid.de1;
     float de2      = hight_plot.grid.de2;
-    float de1_func = hight_plot.de1;
-    float de2_func = hight_plot.de2;
 
     for (float e1_val = min_e1_pos, e1_val_func = hight_plot.min_e1; e1_val < max_e1_pos - de1; e1_val += de1, e1_val_func += hight_plot.de1) {
         for (float e2_val = min_e2_pos, e2_val_func = hight_plot.min_e2; e2_val < max_e2_pos - de2; e2_val += de2, e2_val_func += hight_plot.de2) {
@@ -245,6 +243,8 @@ Hight_plot hight_plot_create_discrete(double (*hight_func)(double, double), floa
     return hight_plot;
 }
 
+/* TODO: add lighting model as described in Pg. 29 */
+
 Hight_plot hight_plot;
 void setup(game_state_t *game_state)
 {
@@ -261,7 +261,7 @@ void update(game_state_t *game_state)
     ae_projection_mat_set(game_state->scene.proj_mat, game_state->scene.camera.aspect_ratio, game_state->scene.camera.fov_deg, game_state->scene.camera.z_near, game_state->scene.camera.z_far);
     ae_view_mat_set(game_state->scene.view_mat, game_state->scene.camera, game_state->scene.up_direction);
 
-    ae_quad_mesh_project_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(hight_plot.proj_quads), hight_plot.quads, game_state->window_w, game_state->window_h, game_state->scene.light_direction, &(game_state->scene));
+    ae_quad_mesh_project_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(hight_plot.proj_quads), hight_plot.quads, game_state->window_w, game_state->window_h, &(game_state->scene));
     ae_grid_project_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, hight_plot.grid_proj, hight_plot.grid, game_state->window_w, game_state->window_h, &(game_state->scene));
 }
 
