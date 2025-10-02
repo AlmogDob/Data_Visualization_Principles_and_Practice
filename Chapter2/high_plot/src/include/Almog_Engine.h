@@ -52,10 +52,13 @@ https://youtu.be/ih20l3pJoeU?si=CzQ8rjk5ZEOlqEHN. */
 #ifndef HexARGB_RGBA
 #define HexARGB_RGBA(x) ((x)>>(8*2)&0xFF), ((x)>>(8*1)&0xFF), ((x)>>(8*0)&0xFF), ((x)>>(8*3)&0xFF)
 #endif
-#ifndef HexARGB_RGBA_VAR
-#define HexARGB_RGBA_VAR(x) uint8_t r = ((x)>>(8*2)&0xFF); uint8_t g = ((x)>>(8*1)&0xFF); uint8_t b = ((x)>>(8*0)&0xFF); uint8_t a = ((x)>>(8*3)&0xFF)
+#ifndef HexARGB_RGB_VAR
+#define HexARGB_RGB_VAR(x, r, g, b) r = ((x)>>(8*2)&0xFF); g = ((x)>>(8*1)&0xFF); b = ((x)>>(8*0)&0xFF);
 #endif
-#define ARGB_hexARGB(a, r, g, b) 0x01000000*(a) + 0x00010000*(r) + 0x00000100*(g) + 0x00000001*(b)
+#ifndef HexARGB_RGBA_VAR
+#define HexARGB_RGBA_VAR(x, r, g, b, a) r = ((x)>>(8*2)&0xFF); g = ((x)>>(8*1)&0xFF); b = ((x)>>(8*0)&0xFF); a = ((x)>>(8*3)&0xFF)
+#endif
+#define ARGB_hexARGB(a, r, g, b) 0x01000000l*(uint8_t)(a) + 0x00010000*(uint8_t)(r) + 0x00000100*(uint8_t)(g) + 0x00000001*(uint8_t)(b)
 #ifndef RGB_hexRGB
 #define RGB_hexRGB(r, g, b) (int)(0x010000*(int)(r) + 0x000100*(int)(g) + 0x000001*(int)(b))
 #endif
@@ -516,7 +519,7 @@ Scene ae_scene_init(int window_h, int window_w)
     mat2D_fill(scene.up_direction, 0);
     MAT2D_AT(scene.up_direction, 1, 0) = 1;
 
-    scene.light_source0.light_direction_or_pos.x = 0;
+    scene.light_source0.light_direction_or_pos.x = 0.5;
     scene.light_source0.light_direction_or_pos.y = 1;
     scene.light_source0.light_direction_or_pos.z = 1;
     scene.light_source0.light_direction_or_pos.w = 0;
@@ -525,8 +528,8 @@ Scene ae_scene_init(int window_h, int window_w)
 
     scene.material0.specular_power_alpha = 1;
     scene.material0.c_ambi = 0.2;
-    scene.material0.c_diff = 0.6;
-    scene.material0.c_spec = 0.2;
+    scene.material0.c_diff = 0.8;
+    scene.material0.c_spec = 0.0;
 
     scene.proj_mat = mat2D_alloc(4, 4);
     ae_projection_mat_set(scene.proj_mat, scene.camera.aspect_ratio, scene.camera.fov_deg, scene.camera.z_near, scene.camera.z_far);
@@ -1356,7 +1359,7 @@ void ae_tri_calc_light_intensity(Tri *tri, Scene *scene, Lighting_mode lighting_
             float mL_dot_norm = ae_point_dot_point(mL, tri->normals[i]);
             mLn2n = tri->normals[i];
             ae_point_mult(mLn2n, 2 * mL_dot_norm);
-            ae_point_sub_point(r, L, mLn2n);
+            ae_point_add_point(r, L, mLn2n);
             
             tri->light_intensity[i] = c_ambi + scene->light_source0.light_intensity * (c_diff * fmaxf(mL_dot_norm, 0) + c_spec * powf(fmaxf(ae_point_dot_point(r, v), 0), alpha));
         }
@@ -1413,7 +1416,7 @@ void ae_quad_calc_light_intensity(Quad *quad, Scene *scene, Lighting_mode lighti
             float mL_dot_norm = ae_point_dot_point(mL, ave_norm);
             mLn2n = ave_norm;
             ae_point_mult(mLn2n, 2 * mL_dot_norm);
-            ae_point_sub_point(r, L, mLn2n);
+            ae_point_add_point(r, L, mLn2n);
             
             quad->light_intensity[i] = c_ambi + scene->light_source0.light_intensity * (c_diff * fmaxf(mL_dot_norm, 0) + c_spec * powf(fmaxf(ae_point_dot_point(r, v), 0), alpha));
         }
@@ -1439,7 +1442,7 @@ void ae_quad_calc_light_intensity(Quad *quad, Scene *scene, Lighting_mode lighti
             float mL_dot_norm = ae_point_dot_point(mL, quad->normals[i]);
             mLn2n = quad->normals[i];
             ae_point_mult(mLn2n, 2 * mL_dot_norm);
-            ae_point_sub_point(r, L, mLn2n);
+            ae_point_add_point(r, L, mLn2n);
             
             quad->light_intensity[i] = c_ambi + scene->light_source0.light_intensity * (c_diff * fmaxf(mL_dot_norm, 0) + c_spec * powf(fmaxf(ae_point_dot_point(r, v), 0), alpha));
         }

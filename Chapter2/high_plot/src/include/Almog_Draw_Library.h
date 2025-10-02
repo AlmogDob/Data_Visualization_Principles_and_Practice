@@ -131,6 +131,9 @@ typedef struct {
 #ifndef HexARGB_RGB_VAR
 #define HexARGB_RGB_VAR(x, r, g, b) r = ((x)>>(8*2)&0xFF); g = ((x)>>(8*1)&0xFF); b = ((x)>>(8*0)&0xFF);
 #endif
+#ifndef HexARGB_RGBA_VAR
+#define HexARGB_RGBA_VAR(x, r, g, b, a) r = ((x)>>(8*2)&0xFF); g = ((x)>>(8*1)&0xFF); b = ((x)>>(8*0)&0xFF); a = ((x)>>(8*3)&0xFF)
+#endif
 #ifndef RGB_hexRGB
 #define RGB_hexRGB(r, g, b) (int)(0x010000*(int)(r) + 0x000100*(int)(g) + 0x000001*(int)(b))
 #endif
@@ -251,7 +254,12 @@ void adl_point_draw(Mat2D_uint32 screen_mat, int x, int y, uint32_t color, Offse
     y = (y - window_h/2 + offset_zoom_param.offset_y) * offset_zoom_param.zoom_multiplier + window_h/2;
 
     if ((x < (int)screen_mat.cols && y < (int)screen_mat.rows) && (x >= 0 && y >= 0)) { /* point is in screen */
-        MAT2D_AT_UINT32(screen_mat, y, x) = color;
+        uint8_t r_new, g_new, b_new, a_new;
+        uint8_t r_current, g_current, b_current, a_current;
+        HexARGB_RGBA_VAR(MAT2D_AT_UINT32(screen_mat, y, x), r_current, g_current, b_current, a_current);
+        HexARGB_RGBA_VAR(color, r_new, g_new, b_new, a_new);
+        MAT2D_AT_UINT32(screen_mat, y, x) = RGBA_hexARGB(r_current*(1-a_new/255.0f) + r_new*a_new/255.0f, g_current*(1-a_new/255.0f) + g_new*a_new/255.0f, b_current*(1-a_new/255.0f) + b_new*a_new/255.0f, 255);
+        (void)a_current;
     }
 }
 
@@ -886,8 +894,8 @@ void adl_quad_fill_interpolate_normal_mean_value(Mat2D_uint32 screen_mat, Mat2D 
         return;
     }
 
-    int r, g, b;
-    HexARGB_RGB_VAR(color, r, g, b);
+    int r, g, b, a;
+    HexARGB_RGBA_VAR(color, r, g, b, a);
 
     for (int y = y_min; y <= y_max; y++) {
         for (int x = x_min; x <= x_max; x++) {
@@ -938,7 +946,7 @@ void adl_quad_fill_interpolate_normal_mean_value(Mat2D_uint32 screen_mat, Mat2D 
                 double inv_z = inv_w / z_over_w;
 
                 if (inv_z >= MAT2D_AT(inv_z_buffer, y, x)) {
-                    adl_point_draw(screen_mat, x, y, RGB_hexRGB(r8, g8, b8), offset_zoom_param);
+                    adl_point_draw(screen_mat, x, y, RGBA_hexARGB(r8, g8, b8, a), offset_zoom_param);
                     MAT2D_AT(inv_z_buffer, y, x) = inv_z;
                 }
             }
@@ -1070,7 +1078,14 @@ void adl_quad_mesh_fill_interpolate_normal(Mat2D_uint32 screen_mat, Mat2D inv_z_
         Quad quad = mesh.elements[i];
         /* Reject invalid quad */
         adl_assert_quad_is_valid(quad);
-        if (!quad.to_draw) continue;
+
+        uint8_t a, r, g, b;
+        HexARGB_RGBA_VAR(color, a, r, g, b);
+        (void)r;
+        (void)g;
+        (void)b;
+
+        if (!quad.to_draw && a == 255) continue;
 
         adl_quad_fill_interpolate_normal_mean_value(screen_mat, inv_z_buffer_mat, quad, color, offset_zoom_param);
     }

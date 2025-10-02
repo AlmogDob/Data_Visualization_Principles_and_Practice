@@ -243,20 +243,16 @@ Hight_plot hight_plot_create_discrete(double (*hight_func)(double, double), floa
     return hight_plot;
 }
 
-/* TODO: add lighting model as described in Pg. 29 */
-
 Hight_plot hight_plot;
-Tri_mesh cube, proj_cube;
 void setup(game_state_t *game_state)
 {
     game_state->to_limit_fps = 0;
 
-    hight_plot = hight_plot_create_smooth(hight_func_exp, hight_func_exp_deriv, -1, 1   , -1, 1   , 0 , 3, 0.1, -0.5, 0.5, -0.5, 0.5, 30, 30, "XZ", 1);
+    // hight_plot = hight_plot_create_smooth(hight_func_exp, hight_func_exp_deriv, -1, 1   , -1, 1   , 0 , 3, 0.1, -0.5, 0.5, -0.5, 0.5, 30, 30, "XZ", 1);
     // hight_plot = hight_plot_create_discrete(hight_func_exp, -1, 1   , -1, 1   , 0 , 3, 0.1, -0.5, 0.5, -0.5, 0.5, 30, 30, "XZ", 1);
-    // hight_plot = hight_plot_create_smooth_approximate(hight_func_exp, -1, 1   , -1, 1   , 0 , 3, 0.1, -0.5, 0.5, -0.5, 0.5, 30, 30, "XZ", 1);
+    hight_plot = hight_plot_create_smooth_approximate(hight_func_exp, -1, 1   , -1, 1   , 0 , 3, 0.1, -0.5, 0.5, -0.5, 0.5, 30, 30, "XZ", 1);
 
-    cube = ae_cube_create_tri_mesh(1, 0xffffffff);
-    proj_cube = ae_cube_create_tri_mesh(1, 0xffffffff);
+    // hight_plot = hight_plot_create_smooth_approximate(hight_func_trig, 0, 6*PI, 0, 6*PI, -1, 0, 1.1, -2, 2, -2, 2, 100, 100, "XZ", 1);
 
 }
 
@@ -265,18 +261,15 @@ void update(game_state_t *game_state)
     ae_projection_mat_set(game_state->scene.proj_mat, game_state->scene.camera.aspect_ratio, game_state->scene.camera.fov_deg, game_state->scene.camera.z_near, game_state->scene.camera.z_far);
     ae_view_mat_set(game_state->scene.view_mat, game_state->scene.camera, game_state->scene.up_direction);
 
-    ae_tri_mesh_project_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(proj_cube), cube, game_state->window_w, game_state->window_h, &(game_state->scene), AE_LIGHTING_FLAT);
     ae_quad_mesh_project_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, &(hight_plot.proj_quads), hight_plot.quads, game_state->window_w, game_state->window_h, &(game_state->scene), AE_LIGHTING_SMOOTH);
     ae_grid_project_world2screen(game_state->scene.proj_mat, game_state->scene.view_mat, hight_plot.grid_proj, hight_plot.grid, game_state->window_w, game_state->window_h, &(game_state->scene));
 }
 
 void render(game_state_t *game_state)
 {
-    // adl_grid_draw(game_state->window_pixels_mat, hight_plot.grid_proj, 0xFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
-    // adl_quad_mesh_fill_interpolate_normal(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads, RGB_hexRGB(0.3*255, 0.8*255, 0.37*255), ADL_DEFAULT_OFFSET_ZOOM);
-
-    adl_tri_mesh_fill_Pinedas_rasterizer_interpolate_normal(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, proj_cube, 0xffffff, ADL_DEFAULT_OFFSET_ZOOM);
+    adl_grid_draw(game_state->window_pixels_mat, hight_plot.grid_proj, 0xFFFFFFFF, ADL_DEFAULT_OFFSET_ZOOM);
+    adl_quad_mesh_fill_interpolate_normal(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads, ARGB_hexARGB(0.7*255, 0.3*255, 0.8*255, 0.37*255), ADL_DEFAULT_OFFSET_ZOOM);
+    // adl_quad_mesh_fill_interpolate_normal(game_state->window_pixels_mat, game_state->inv_z_buffer_mat, hight_plot.proj_quads, ARGB_hexARGB(1*255, 1*255, 1*255, 1*255), ADL_DEFAULT_OFFSET_ZOOM);
 
     hight_plot.proj_quads.length = 0;
-    proj_cube.length = 0;
 }
